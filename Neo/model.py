@@ -1105,35 +1105,44 @@ class RuleEngine:
             scores, home_xg, away_xg, reasoning
         )
 
-        # Prioritize safer markets: Double Chance > BTTS > Over/Under > Straight Win
-        market_priority = {
-            "double_chance": 10,  # Safest - one of two outcomes must happen
-            "draw_no_bet": 9,     # Very safe - draw eliminated
-            "btts": 8,            # Safe - both teams likely to score
-            "over_under": 7,      # Safe - goals are common
-            "clean_sheet": 6,     # Moderately safe
-            "goal_range": 5,      # Based on xG expectations
-            "btts_win": 4,        # Combined but safer than straight win
-            "correct_score": 3,   # Specific but can be high probability
-            "1X2": 2,            # Straight result - least safe
-            "asian_handicap": 1,  # Requires margin - least safe
-        }
+        # PRIORITIZE XG ALIGNMENT: Select predictions that align with expected goals
+        # xG is the most reliable indicator - predictions must align with xG
 
-        # Score each market considering both confidence and safety
-        scored_predictions = []
-        for market_key, prediction in betting_markets.items():
-            confidence_score = prediction.get("confidence_score", 0)
-            safety_score = market_priority.get(market_key, 1)
+        xg_diff = home_xg - away_xg
 
-            # For straight wins (1X2), reduce score if confidence is low
-            if market_key == "1X2" and confidence_score < 0.7:
-                safety_score = 0.5  # Much less attractive for low confidence straight wins
+        # xG-based market selection
+        if xg_diff > 0.8:  # Home team strongly favored by xG
+            # Home team should win - but use safer markets for lower confidence
+            if home_score > away_score + 3 and "1X2" in betting_markets:  # High confidence in home win
+                best_prediction = betting_markets["1X2"]
+                if best_prediction["market_prediction"] == "Draw":
+                    best_prediction = betting_markets.get("double_chance", best_prediction)  # Force home or draw
+            else:
+                best_prediction = betting_markets.get("double_chance", betting_markets.get("btts", list(betting_markets.values())[0]))  # Safer home or draw
 
-            final_score = confidence_score * safety_score
-            scored_predictions.append((final_score, prediction))
+        elif xg_diff < -0.8:  # Away team strongly favored by xG
+            # Away team should win - but use safer markets for lower confidence
+            if away_score > home_score + 3 and "1X2" in betting_markets:  # High confidence in away win
+                best_prediction = betting_markets["1X2"]
+                if best_prediction["market_prediction"] == "Draw":
+                    best_prediction = betting_markets.get("double_chance", best_prediction)  # Force away or draw
+            else:
+                best_prediction = betting_markets.get("double_chance", betting_markets.get("btts", list(betting_markets.values())[0]))  # Safer away or draw
 
-        # Select the highest scoring prediction (best balance of confidence + safety)
-        best_prediction = max(scored_predictions, key=lambda x: x[0])[1]
+        else:  # Close xG - use safer markets
+            # Prioritize BTTS, Over/Under, or Draw No Bet for close matches
+            xg_aligned_markets = ["btts", "over_under", "goal_range", "draw_no_bet"]
+
+            # Find market with highest confidence that aligns with xG
+            max_confidence = 0
+            best_prediction = betting_markets.get("btts", list(betting_markets.values())[0])  # Default fallback
+
+            for market_key in xg_aligned_markets:
+                if market_key in betting_markets:
+                    confidence = betting_markets[market_key].get("confidence_score", 0)
+                    if confidence > max_confidence:
+                        max_confidence = confidence
+                        best_prediction = betting_markets[market_key]
 
         # Format prediction with market context for clarity
         market_type_short = best_prediction["market_type"].split("(")[0].strip()  # Remove parentheses
