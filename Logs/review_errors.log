@@ -2103,3 +2103,7 @@ Call log:
 Call log:
   - waiting for locator("div.detailScore__wrapper > span:nth-child(3)").first
 
+2025-12-28T15:04:31.959459 [MEDIUM] review_task_error: Review failed for YuuCnVat: Page.goto: net::ERR_CONNECTION_RESET at https://www.flashscore.com/match/football/fomget-genclik-ve-spor-GGRe8I06/hakkarigucu-0jKVCtx8/?mid=YuuCnVat
+Call log:
+  - navigating to "https://www.flashscore.com/match/football/fomget-genclik-ve-spor-GGRe8I06/hakkarigucu-0jKVCtx8/?mid=YuuCnVat", waiting until "domcontentloaded"
+

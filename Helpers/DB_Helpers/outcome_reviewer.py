@@ -7,7 +7,7 @@ Responsible for managing the review workflow, CSV operations, and outcome tracki
 import asyncio
 import csv
 import os
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 from typing import List, Dict, Any
 
 from .prediction_evaluator import evaluate_prediction
@@ -67,35 +67,56 @@ def get_predictions_to_review() -> List[Dict]:
         reader = csv.DictReader(f)
         all_rows = list(reader)
 
-        for row in reversed(all_rows):
-            if len(to_review) >= LOOKBACK_LIMIT:
-                break
+    for row in reversed(all_rows):
+        if len(to_review) >= LOOKBACK_LIMIT:
+            break
 
-            try:
-                match_date_str = row.get('Date') or row.get('date')
-                if not match_date_str:
-                    continue
-
-                match_date = dt.strptime(match_date_str, "%d.%m.%Y").date()
-                status = row.get('status')
-
-                if match_date < today and status not in ['reviewed', 'match_canceled', 'review_failed', 'match_postponed']:
-                    fixture_id = row.get('fixture_id')
-                    # --- OPTIMIZATION: Check local DB first ---
-                    if fixture_id and fixture_id in schedule_db:
-                        db_entry = schedule_db[fixture_id]
-                        if db_entry.get('match_status') == 'finished' and db_entry.get('home_score'):
-                            row['actual_score'] = f"{db_entry['home_score']}-{db_entry['away_score']}"
-                            row['source'] = 'db' # Mark as found in DB
-                            to_review.append(row)
-                            continue # Move to next prediction
-
-                    # Fallback to web scraping if not in DB or not finished
-                    match_link = row.get('match_link')
-                    if match_link and "flashscore" in match_link:
-                            to_review.append(row)
-            except (ValueError, TypeError):
+        try:
+            match_date_str = row.get('Date') or row.get('date')
+            if not match_date_str:
                 continue
+
+            # Check for invalid time -> cancel match
+            match_time = row.get('match_time')
+            if not match_time or match_time == 'N/A':
+                if row.get('status') != 'match_canceled':
+                    save_single_outcome(row, 'match_canceled')
+                continue
+
+            match_date = dt.strptime(match_date_str, "%d.%m.%Y").date()
+            status = row.get('status')
+
+            # Check eligibility: Date is past OR (Date is today AND Time is 4+ hours ago)
+            is_eligible = False
+            now = dt.now()
+
+            if match_date < today:
+                is_eligible = True
+            elif match_date == today:
+                try:
+                    match_dt = dt.combine(match_date, dt.strptime(match_time, "%H:%M").time())
+                    if now >= match_dt + timedelta(hours=4):
+                        is_eligible = True
+                except (ValueError, TypeError):
+                    pass
+
+            if is_eligible and status not in ['reviewed', 'match_canceled', 'review_failed', 'match_postponed']:
+                fixture_id = row.get('fixture_id')
+                # --- OPTIMIZATION: Check local DB first ---
+                if fixture_id and fixture_id in schedule_db:
+                    db_entry = schedule_db[fixture_id]
+                    if db_entry.get('match_status') == 'finished' and db_entry.get('home_score'):
+                        row['actual_score'] = f"{db_entry['home_score']}-{db_entry['away_score']}"
+                        row['source'] = 'db' # Mark as found in DB
+                        to_review.append(row)
+                        continue # Move to next prediction
+
+                # Fallback to web scraping if not in DB or not finished
+                match_link = row.get('match_link')
+                if match_link and "flashscore" in match_link:
+                        to_review.append(row)
+        except (ValueError, TypeError):
+            continue
 
     print(f"[Review] Found {len(to_review)} past predictions to review (Limit: {LOOKBACK_LIMIT}).")
     return to_review
