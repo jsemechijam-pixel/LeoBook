@@ -2883,3 +2883,7 @@ Call log:
 Call log:
   - waiting for locator("div.detailScore__wrapper > span:nth-child(3)").first
 
+2025-12-31T12:58:04.280571 [MEDIUM] score_extraction_error: Failed to extract score: Locator.inner_text: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("div.detailScore__wrapper > span:nth-child(3)").first
+
