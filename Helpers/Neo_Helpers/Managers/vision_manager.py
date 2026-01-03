@@ -46,13 +46,17 @@ async def get_visual_ui_analysis(page: Page, context_key: str = "unknown") -> st
         except ValueError:  # Prompt not found
             prompt = generate_dynamic_prompt("ui_analysis", "vision")  # Fallback
 
-        response = await gemini_api_call_with_rotation(
+        response = gemini_api_call_with_rotation(
             [prompt, image_data],
             generation_config=GenerationConfig(temperature=0.1)
         )
 
-        print("    [VISION] Analysis complete.")
-        return response.text if response.candidates else ""
+        if response and response.candidates:
+            print("    [VISION] Analysis complete.")
+            return response.text
+        else:
+            print("    [VISION ERROR] No valid response from AI")
+            return ""
 
     except Exception as e:
         print(f"    [VISION ERROR] Failed to analyze screenshot: {e}")

@@ -5,15 +5,17 @@ Handles matching predictions.csv data with extracted Football.com matches using 
 
 import csv
 import difflib
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 
 from pathlib import Path
 from Helpers.DB_Helpers.db_helpers import PREDICTIONS_CSV, update_prediction_status
+# Import LLM matcher conditionally
 try:
-    from Helpers.AI.llm_matcher import SemanticMatcher
+    import Helpers.AI.llm_matcher as llm_module
     HAS_LLM = True
 except ImportError:
+    llm_module = None
     HAS_LLM = False
     print("  [Matcher] Warning: LLM dependencies not found. Falling back to simple fuzzy matching.")
 
@@ -60,7 +62,11 @@ def calculate_similarity(str1: str, str2: str) -> float:
     norm1 = normalize_team_name(str1)
     norm2 = normalize_team_name(str2)
     if HAS_RAPIDFUZZ:
-        return fuzz.token_set_ratio(norm1, norm2) / 100.0
+        try:
+            from rapidfuzz import fuzz
+            return fuzz.token_set_ratio(norm1, norm2) / 100.0
+        except ImportError:
+            return difflib.SequenceMatcher(None, norm1, norm2).ratio()
     else:
         return difflib.SequenceMatcher(None, norm1, norm2).ratio()
 
@@ -131,10 +137,10 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
         return {}
 
     # Initialise LLM matcher once if available
-    llm_matcher: Optional[SemanticMatcher] = None
-    if HAS_LLM:
+    llm_matcher: Optional[Any] = None
+    if HAS_LLM and llm_module:
         try:
-            llm_matcher = SemanticMatcher()
+            llm_matcher = llm_module.SemanticMatcher()
             print("  [Matcher] LLM Semantic Matcher initialized.")
         except Exception as e:
             print(f"  [Matcher] Failed to initialise LLM matcher: {e}")

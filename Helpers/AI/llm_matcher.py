@@ -47,6 +47,7 @@ class SemanticMatcher:
             "stop": ["\n", "."]  # Encourage strict single-word response
         }
 
+        response = None
         try:
             response = requests.post(
                 self.api_url,
@@ -54,10 +55,10 @@ class SemanticMatcher:
                 timeout=self.timeout
             )
             response.raise_for_status()
-            
+
             data = response.json()
             content = data['choices'][0]['message']['content'].strip().lower()
-            
+
             # Robust yes/no detection
             if content.startswith('yes'):
                 return True
@@ -66,7 +67,7 @@ class SemanticMatcher:
             else:
                 # Fallback: check for presence of 'yes' anywhere (in case of extra text)
                 return 'yes' in content
-                
+
         except requests.Timeout:
             print(f"  [LLM Error] Timeout when matching '{desc1}' vs '{desc2}'")
             return False
@@ -74,7 +75,8 @@ class SemanticMatcher:
             print(f"  [LLM Error] Connection failed to LLM server at {self.api_url}")
             return False
         except requests.HTTPError as http_err:
-            print(f"  [LLM Error] HTTP error: {http_err} | Response: {response.text if 'response' in locals() else 'N/A'}")
+            response_text = response.text if response else 'N/A'
+            print(f"  [LLM Error] HTTP error: {http_err} | Response: {response_text}")
             return False
         except Exception as e:
             print(f"  [LLM Error] Unexpected failure matching '{desc1}' vs '{desc2}': {e}")

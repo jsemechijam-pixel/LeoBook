@@ -223,7 +223,7 @@ async def navigate_to_schedule(page: Page):
                  return
 
     # Try dynamic selector first
-    schedule_sel = get_selector("fb_main_page", "full_schedule_button")
+    schedule_sel = await get_selector_auto(page, "fb_main_page", "full_schedule_button")
 
     
     if schedule_sel:
@@ -257,7 +257,7 @@ async def select_target_date(page: Page, target_date: str) -> bool:
     await capture_debug_snapshot(page, "pre_date_select", f"Attempting to select {target_date}")
 
     # Dynamic Selector First
-    dropdown_sel = get_selector("fb_schedule_page", "filter_dropdown_today")
+    dropdown_sel = await get_selector_auto(page, "fb_schedule_page", "filter_dropdown_today")
     dropdown_found = False
     
     if dropdown_sel:
@@ -309,7 +309,7 @@ async def select_target_date(page: Page, target_date: str) -> bool:
 
         # Sort by League (Mandatory)
         try:
-            sort_sel = get_selector("fb_schedule_page", "sort_dropdown")
+            sort_sel = await get_selector_auto(page, "fb_schedule_page", "sort_dropdown")
             print(f"  [Debug] sort_sel: {sort_sel}")
             if sort_sel:
                 if await page.locator(sort_sel).count() > 0:
@@ -326,7 +326,7 @@ async def select_target_date(page: Page, target_date: str) -> bool:
                     await asyncio.sleep(1)
                     break
                 else:
-                        print(f"  [Filter] League option not found using: {league_selector}")
+                        print("  [Filter] Sort dropdown not visible on page")
                         
         except Exception as e:
             print(f"  [Filter] League sorting failed: {e}")
@@ -350,7 +350,7 @@ async def select_target_date(page: Page, target_date: str) -> bool:
     try:
         # Look for any match time elements to validate we're on the right date page
         # User Requirement: Use dynamically retrieved 'match_row_time'
-        time_sel = get_selector("fb_schedule_page", "match_row_time")
+        time_sel = await get_selector_auto(page, "fb_schedule_page", "match_row_time")
         
         if time_sel:
             try:

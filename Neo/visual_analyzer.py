@@ -1,6 +1,6 @@
 """
 Visual Analyzer Module
-Handles screenshot analysis, visual UI processing, and Gemini vision API integration.
+Handles screenshot analysis and visual UI processing using Local Leo AI.
 Responsible for analyzing webpage screenshots and extracting UI element information.
 """
 
@@ -20,7 +20,7 @@ from Helpers.Site_Helpers.page_logger import log_page_html
 
 
 class VisualAnalyzer:
-    """Handles visual analysis of web pages using Gemini Vision API"""
+    """Handles visual analysis of web pages using Local Leo AI"""
 
     @staticmethod
     async def analyze_page_and_update_selectors(
@@ -99,10 +99,10 @@ class VisualAnalyzer:
         """Capture and analyze visual UI elements from screenshot"""
         try:
             try:
-                screenshot_bytes = await page.screenshot(full_page=True, type="png", timeout=15000)
+                screenshot_bytes = await page.screenshot(full_page=True, type="jpeg", quality=60, timeout=15000)
             except Exception:
                 print(f"    [VISUAL WARNING] Full page screenshot failed. Falling back to viewport.")
-                screenshot_bytes = await page.screenshot(full_page=False, type="png")
+                screenshot_bytes = await page.screenshot(full_page=False, type="jpeg", quality=60)
             img_data = base64.b64encode(screenshot_bytes).decode("utf-8")
 
             prompt = """
@@ -453,77 +453,42 @@ class VisualAnalyzer:
             }}
             """
 
-            # --- LEO: LOCAL VISION UPGRADE (Qwen3-VL) ---
+            # --- LEO: LOCAL VISION ANALYSIS ---
             try:
-                print("    [VISUAL] Analyzing UI with Local Qwen3-VL (Port 8080)...")
-                
+                print("    [VISUAL] Analyzing UI with Local Leo AI (Port 8080)...")
+
                 def _run_local_vision():
                     return requests.post(
                         os.getenv("LLM_API_URL", "http://127.0.0.1:8080/v1/chat/completions"),
                         json={
                             "messages": [
                                 {
-                                    "role": "user", 
+                                    "role": "user",
                                     "content": [
                                         {"type": "text", "text": prompt},
-                                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_data}"}}
+                                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}}
                                     ]
                                 }
                             ],
                             "temperature": 0.1,
                             "max_tokens": 4096,
                             "stream": False
-                        }, 
+                        },
                         timeout=180
                     )
 
                 # Run blocking request in thread
                 local_resp = await asyncio.to_thread(_run_local_vision)
-                
+
                 if local_resp.status_code == 200:
                     content = local_resp.json()['choices'][0]['message']['content']
                     return content
                 else:
-                    print(f"    [VISUAL WARNING] Local Qwen returned status {local_resp.status_code}. Falling back to Cloud...")
-            
-            except Exception as e:
-                print(f"    [VISUAL WARNING] Local Qwen failed ({e}). Falling back to Cloud Gemini...")
-
-            # Fallback: Google Gemini
-            response = gemini_api_call_with_rotation(
-                [prompt, {"inline_data": {"mime_type": "image/png", "data": img_data}}],
-                generation_config={"temperature": 0.1},  # type: ignore
-            )
-
-            # Safe extraction logic
-            text_content = None
-            try:
-                if response and hasattr(response, 'text') and response.text:
-                    text_content = response.text
-            except Exception:
-                pass
-
-            if text_content:
-                return text_content
-
-            if response and hasattr(response, 'candidates') and response.candidates and len(response.candidates) > 0:
-                # Try to extract text from candidates
-                try:
-                    candidate = response.candidates[0]
-                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts') and candidate.content.parts:
-                        return candidate.content.parts[0].text
-                    else:
-                        print(f"    [VISUAL ERROR] Invalid candidate structure")
-                        return None
-                except (IndexError, AttributeError, TypeError) as e:
-                    print(f"    [VISUAL ERROR] Could not extract text from response candidates: {e}")
+                    print(f"    [VISUAL ERROR] Local Leo AI returned status {local_resp.status_code}")
                     return None
-            else:
-                print(f"    [VISUAL ERROR] Invalid or empty response format: {type(response)}")
-                if response:
-                    print(f"    [VISUAL ERROR] Response attributes: {dir(response)}")
-                    if hasattr(response, 'candidates'):
-                        print(f"    [VISUAL ERROR] Candidates: {response.candidates}")
+
+            except Exception as e:
+                print(f"    [VISUAL ERROR] Local Leo AI failed ({e})")
                 return None
 
         except Exception as e:
@@ -545,13 +510,13 @@ class VisualAnalyzer:
         )
 
         # Truncate if too long
-        return html_content[:100000]
+        return html_content[:12000]
 
     @staticmethod
     async def map_visuals_to_selectors(
         ui_visual_context: str, html_content: str, focus: Optional[str] = None
     ) -> Optional[Dict[str, str]]:
-        """Map visual UI elements to CSS selectors using Gemini"""
+        """Map visual UI elements to CSS selectors using Local Leo AI"""
 
         prompt = f"""
         You are an elite front-end reverse-engineer tasked with mapping UI elements to CSS selectors using ONLY the provided HTML source.

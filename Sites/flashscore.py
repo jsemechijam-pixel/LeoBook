@@ -22,6 +22,28 @@ from Helpers.monitor import PageMonitor
 # --- CONFIGURATION ---
 NIGERIA_TZ = ZoneInfo("Africa/Lagos")
 
+# --- RETRY CONFIGURATION ---
+MAX_EXTRACTION_RETRIES = 3
+EXTRACTION_RETRY_DELAYS = [5, 10, 15]  # Progressive delays in seconds
+
+
+async def retry_extraction(extraction_func, *args, **kwargs):
+    """
+    Retry wrapper for extraction functions with progressive delays.
+    Similar to retry mechanism in outcome_reviewer.py
+    """
+    for attempt in range(MAX_EXTRACTION_RETRIES):
+        try:
+            return await extraction_func(*args, **kwargs)
+        except Exception as e:
+            if attempt < MAX_EXTRACTION_RETRIES - 1:
+                delay = EXTRACTION_RETRY_DELAYS[attempt]
+                print(f"      [Retry] Extraction failed (attempt {attempt + 1}), retrying in {delay}s: {e}")
+                await asyncio.sleep(delay)
+            else:
+                print(f"      [Retry] Extraction failed after {MAX_EXTRACTION_RETRIES} attempts: {e}")
+                raise
+
 
 async def process_match_task(match_data: dict, browser: Browser):
     """
@@ -89,7 +111,7 @@ async def process_match_task(match_data: dict, browser: Browser):
 
                 await asyncio.sleep(3.0)  # Shorter wait time
                 await analyze_page_and_update_selectors(page, "h2h_tab")
-                h2h_data = await extract_h2h_data(page, match_data['home_team'], match_data['away_team'], "h2h_tab")
+                h2h_data = await retry_extraction(extract_h2h_data, page, match_data['home_team'], match_data['away_team'], "h2h_tab")
 
                 h2h_count = len(h2h_data.get("home_last_10_matches", [])) + len(h2h_data.get("away_last_10_matches", [])) + len(h2h_data.get("head_to_head", []))
                 print(f"      [OK H2H] H2H tab data extracted for {match_label} ({h2h_count} matches found)")
@@ -120,7 +142,7 @@ async def process_match_task(match_data: dict, browser: Browser):
 
                 await fs_universal_popup_dismissal(page, "standings_tab")
                 await asyncio.sleep(3.0)
-                standings_result = await extract_standings_data(page)
+                standings_result = await retry_extraction(extract_standings_data, page)
                 standings_data = standings_result.get("standings", [])
                 standings_league = standings_result.get("region_league", "Unknown")
                 if standings_league == "Unknown":
@@ -285,12 +307,13 @@ async def run_flashscore_analysis(playwright: Playwright):
     Main function to handle Flashscore data extraction and analysis.
     """
     print("\n--- Running Flashscore Analysis ---")
-    
+
     browser = await playwright.chromium.launch(
         headless=True,
         args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"]
     )
-    
+
+    context = None
     try:
         context = await browser.new_context(
             user_agent=(
@@ -424,7 +447,7 @@ async def run_flashscore_analysis(playwright: Playwright):
                 print("    [Info] No new matches to process for this day.")
 
     finally:
-        if 'context' in locals():
+        if context is not None:
             await context.close()
         if 'browser' in locals():
              await browser.close()

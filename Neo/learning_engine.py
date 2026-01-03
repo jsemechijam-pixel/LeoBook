@@ -7,7 +7,7 @@ import json
 import os
 import csv
 from collections import defaultdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 class LearningEngine:
     """Self-learning component that analyzes prediction performance and adjusts weights per region/league."""
@@ -105,15 +105,16 @@ class LearningEngine:
             json.dump(all_weights, f, indent=2)
 
     @staticmethod
-    def analyze_performance() -> Dict[str, Dict[str, Dict[str, int]]]:
+    def analyze_performance() -> Tuple[Dict[str, Dict[str, Dict[str, int]]], Dict[str, Dict[str, Dict[str, int]]]]:
         """
         Analyze prediction performance breakdown by Region/League and Rule.
-        Returns: { RegionLeague: { RuleKey: { 'correct': int, 'total': int } } }
+        Returns: (rule_performance, confidence_performance)
+        where each is { RegionLeague: { Key: { 'correct': int, 'total': int } } }
         """
         from Helpers.DB_Helpers.db_helpers import PREDICTIONS_CSV
         
         if not os.path.exists(PREDICTIONS_CSV):
-            return {}
+            return {}, {}
 
         # Structure: League -> Rule -> Stats
         performance = defaultdict(lambda: defaultdict(lambda: {"correct": 0, "total": 0}))
@@ -152,9 +153,10 @@ class LearningEngine:
                                 
         except Exception as e:
             print(f"Error analyzing performance: {e}")
-            return {}
+            return {}, {}
 
-        return performance, conf_performance
+        # Convert defaultdicts to regular dicts for return
+        return dict(performance), dict(conf_performance)
 
     @staticmethod
     def update_weights() -> Dict[str, Any]:

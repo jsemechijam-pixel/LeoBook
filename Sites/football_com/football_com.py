@@ -56,10 +56,20 @@ async def run_football_com_booking(playwright: Playwright):
 
     print(f"  [Info] Dates with predictions: {sorted(predictions_by_date.keys())}")
 
-    user_data_dir = Path("DB/ChromeData").absolute()
+    user_data_dir = Path("DB/ChromeData_v3").absolute()
     user_data_dir.mkdir(parents=True, exist_ok=True)
     
-    print("  [System] Launching Persistent Context for Football.com...")
+    print(f"  [System] Launching Persistent Context for Football.com... (Data Dir: {user_data_dir})")
+    
+    # Pre-emptive lock cleanup
+    lock_file = user_data_dir / "SingletonLock"
+    if lock_file.exists():
+         print("  [System] Found existing SingletonLock. Removing it before launch...")
+         try:
+             lock_file.unlink()
+         except Exception as e:
+             print(f"  [Warning] Could not remove SingletonLock: {e}")
+
     context = None
     page = None
     
@@ -99,7 +109,7 @@ async def run_football_com_booking(playwright: Playwright):
     try:
         # 2. Load or create session
         # Note: navigator now accepts context directly
-        page = await load_or_create_session(context)
+        _, page = await load_or_create_session(context)
         await log_page_title(page, "Session Loaded")
         
         # Activate Vigilance

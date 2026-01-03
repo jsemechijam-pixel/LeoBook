@@ -39,7 +39,7 @@ class SelectorManager:
             # This prevents premature auto-healing due to network lag or slow rendering.
             try:
                 # Use wait_for_selector which is more robust for this check.
-                await page.wait_for_selector(selector, state='attached', timeout=120000)  # 2 minutes
+                await page.wait_for_selector(selector, state='attached', timeout=5000)  # 5 seconds
                 is_valid = True
             except Exception as e:
                 print(f"    [Selector Stale] '{element_key}' ('{selector}') not found after 2 min wait.")

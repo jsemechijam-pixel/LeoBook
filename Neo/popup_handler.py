@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 from .popup_detector import PopupDetector
 from .selector_manager import SelectorManager
-from .gemini_popup_analyzer import GeminiPopupAnalyzer
+from .leo_popup_analyzer import LeoPopupAnalyzer
 from .popup_executor import PopupExecutor
 
 
@@ -28,7 +28,7 @@ class PopupHandler:
     def __init__(self):
         self.detector = PopupDetector()
         self.selector_manager = SelectorManager()
-        self.gemini_analyzer = GeminiPopupAnalyzer()  # Optional - requires API key
+        self.leo_analyzer = LeoPopupAnalyzer()  # Optional - requires API key
         self.executor = PopupExecutor()
 
     async def fb_universal_popup_dismissal(
@@ -131,11 +131,11 @@ class PopupHandler:
             return result
 
         # Step 3: If standard fails and we have screenshot, try AI analysis
-        if screenshot_path and self.gemini_analyzer:
+        if screenshot_path and self.leo_analyzer:
             print("[AI Pop-up] Standard dismissal failed, trying AI analysis...")
-            ai_analysis = await self.gemini_analyzer.analyze_popup(page, await page.content(), screenshot_path, context)
+            ai_analysis = await self.leo_analyzer.analyze_popup(page, await page.content(), screenshot_path, context)
             if ai_analysis.get('has_popup', False) and ai_analysis.get('selectors', []):
-                ai_result = await self.gemini_analyzer.execute_ai_dismissal(page, ai_analysis)
+                ai_result = await self.leo_analyzer.execute_ai_dismissal(page, ai_analysis)
                 if ai_result['success']:
                     result = ai_result.copy()
                     result['method'] = 'ai_analysis'
