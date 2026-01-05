@@ -77,15 +77,13 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# Mind (AI Models & Data)
-Mind/
-!Mind/*.sh
-!Mind/*.bat
-!Mind/*.py
-!Mind/*.ps1
-!Mind/Modelfile*
-!Mind/LICENSE*
+# Mind (AI Models & Data) - Exclude large files and platform-specific binaries
+Mind/model.gguf
+Mind/mmproj.gguf
+Mind/*.exe
+Mind/*.dll
+Mind/llama-server
+Mind/llama.cpp/
 
 # Chrome Profile Data
 DB/ChromeData*/
-
