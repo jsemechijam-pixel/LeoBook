@@ -29,4 +29,4 @@ services:
       - ./Mind:/models
     # Command to run the split model (Brain + Eyes)
     # We increase context size (-c) and force the host to listen on 0.0.0.0
-    command: -m /models/model.gguf --mmproj /models/mmproj.gguf --host 0.0.0.0 --port 8080 -c 22144
+    command: -m /models/model.gguf --mmproj /models/mmproj.gguf --host 0.0.0.0 --port 8080 -c 1000000
