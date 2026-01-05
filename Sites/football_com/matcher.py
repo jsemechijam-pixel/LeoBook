@@ -1,6 +1,6 @@
 """
 Matcher Module
-Handles matching predictions.csv data with extracted Football.com matches using Gemini AI.
+Handles matching predictions.csv data with extracted Football.com matches using Leo AI.
 """
 
 import csv
@@ -250,10 +250,12 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
         elif top['total_score'] >= 0.65 and llm_matcher:
             # Borderline case: Ask AI
             m = top['match']
-            print(f"    [LLM Check] Verifying borderline candidate: Pred '{pred_home} vs {pred_away}' ↔ Site '{m['home']} vs {m['away']}' (Score: {top['total_score']:.3f})")
+            site_home = m.get('home', '') or m.get('home_team', '')
+            site_away = m.get('away', '') or m.get('away_team', '')
+            print(f"    [LLM Check] Verifying borderline candidate: Pred '{pred_home} vs {pred_away}' ↔ Site '{site_home} vs {site_away}' (Score: {top['total_score']:.3f})")
             if await llm_matcher.is_match(
                 f"{pred_home} vs {pred_away} in {pred_region_league}",
-                f"{m['home']} vs {m['away']} in {m['league']}",
+                f"{site_home} vs {site_away} in {m.get('league', '')}",
                 league=pred_region_league
             ):
                 print("      -> AI confirmed match!")
@@ -266,8 +268,11 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
             mapping[pred_id] = site_url
             used_site_urls.add(site_url)
             time_str = pred_utc_dt.strftime('%Y-%m-%d %H:%M') if pred_utc_dt else 'N/A'
+            m = top['match']
+            site_home = m.get('home', '') or m.get('home_team', '')
+            site_away = m.get('away', '') or m.get('away_team', '')
             print(f"  [OK] Matched prediction {pred_id} ({pred_home} vs {pred_away} @ {time_str}) "
-                  f"-> {top['match'].get('home')} vs {top['match'].get('away')} (score {top['total_score']:.3f})")
+                  f"-> {site_home} vs {site_away} (score {top['total_score']:.3f})")
         else:
             if top['total_score'] > 0.5: # Only print if there was a somewhat reasonable candidate
                 print(f"  [X] No reliable match found for prediction {pred_id} ({pred_home} vs {pred_away}). Top candidate score {top['total_score']:.3f} was rejected or too low.")

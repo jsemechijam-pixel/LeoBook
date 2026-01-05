@@ -8,7 +8,7 @@ import re
 
 def clean_json_response(text: str) -> str:
     """
-    Cleans Gemini response to ensure valid JSON parsing.
+    Cleans Leo AI response to ensure valid JSON parsing.
     Removes Markdown fences and attempts to fix common escape issues.
     """
     if not text:
@@ -34,7 +34,7 @@ def clean_json_response(text: str) -> str:
     # Replace any backslash that's not followed by valid JSON escape chars
     text = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", text)
 
-    # 5. Handle unescaped quotes within strings (very common Gemini issue)
+    # 5. Handle unescaped quotes within strings (very common Leo AI issue)
     # Look for patterns like "selector": "div.class[attr="value"]"
     # and escape the inner quotes
     text = re.sub(r'("selector"\s*:\s*"[^"]*)"([^"]*)"([^"]*")', lambda m: m.group(1) + m.group(2).replace('"', '\\"') + m.group(3), text)

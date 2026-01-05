@@ -1,7 +1,17 @@
 """
 Selector Manager Module
 Handles CSS selector storage, retrieval, and management for web automation.
-Responsible for maintaining the knowledge base of UI selectors with auto-healing capabilities.
+
+AUTO-HEALING PHILOSOPHY:
+- Conservative approach: Only heal when selectors actually fail during use
+- No proactive validation or healing to avoid unnecessary AI calls
+- Healing happens on-demand via heal_selector_on_failure()
+- Use get_selector_with_fallback() for robust selector access with automatic healing
+
+USAGE PATTERNS:
+1. get_selector_auto() - Simple DB lookup (no healing)
+2. get_selector_with_fallback() - DB lookup + on-demand healing if selector fails
+3. heal_selector_on_failure() - Direct healing when you know a selector failed
 """
 
 import os
@@ -21,64 +31,52 @@ class SelectorManager:
     @staticmethod
     async def get_selector_auto(page, context_key: str, element_key: str) -> str:
         """
-        SMART ACCESSOR:
-        1. Checks if selector exists in DB.
-        2. Validates if selector is present on the current page.
-        3. If missing or invalid, attempts AI re-analysis, but falls back gracefully.
+        CONSERVATIVE ACCESSOR:
+        Returns selector from DB without proactive validation or auto-healing.
+        Auto-healing only occurs when selectors are actually used and fail.
+        """
+        # Simple lookup - no validation, no healing
+        selector = knowledge_db.get(context_key, {}).get(element_key, "")
+        return str(selector)
+
+    @staticmethod
+    async def heal_selector_on_failure(page, context_key: str, element_key: str, failure_reason: str = "") -> str:
+        """
+        ON-DEMAND HEALING:
+        Called only when a selector actually fails during use.
+        Attempts to find a new selector for the failed element.
         """
         # Import here to avoid circular imports
         from .intelligence import analyze_page_and_update_selectors
 
-        # 1. Quick Lookup
-        selector = knowledge_db.get(context_key, {}).get(element_key)
+        print(f"    [On-Demand Heal] Selector '{element_key}' failed in '{context_key}'. Attempting repair...")
 
-        # 2. Validation
-        is_valid = False
-        if selector:
-            # --- NEW: Wait up to 2 minutes for the selector to be attached to the DOM ---
-            # This prevents premature auto-healing due to network lag or slow rendering.
-            try:
-                # Use wait_for_selector which is more robust for this check.
-                await page.wait_for_selector(selector, state='attached', timeout=5000)  # 5 seconds
-                is_valid = True
-            except Exception as e:
-                print(f"    [Selector Stale] '{element_key}' ('{selector}') not found after 2 min wait.")
-                is_valid = False
-
-        # 3. Auto-Healing (with graceful fallback)
-        if not is_valid:
-            # --- NEW: Context Verification ---
-            # Verify if we are actually on the page we think we are before healing.
+        try:
+            # Verify we're on the correct page context before healing
             from .page_analyzer import PageAnalyzer
             content_is_correct = await PageAnalyzer.verify_page_context(page, context_key)
-            
+
             if not content_is_correct:
                 curr_url = page.url
-                print(f"    [Auto-Heal Mismatch] Aborting repair for '{context_key}'. Page mismatch: {curr_url}")
-                return str(selector or "")
+                print(f"    [Heal Aborted] Wrong page context for '{context_key}': {curr_url}")
+                return ""
 
-            print(
-                f"    [Auto-Heal] Selector '{element_key}' in '{context_key}' invalid/missing. Initiating AI repair..."
-            )
-            info = f"Selector '{element_key}' in '{context_key}' invalid/missing."
-            try:
-                # Run AI Analysis (which now captures its own snapshot)
-                await analyze_page_and_update_selectors(page, context_key, force_refresh=True, info=info)
+            # Attempt AI-powered healing
+            info = f"Selector '{element_key}' failed during use in '{context_key}'. {failure_reason}"
+            await analyze_page_and_update_selectors(page, context_key, force_refresh=True, info=info)
 
-                # Re-fetch
-                selector = knowledge_db.get(context_key, {}).get(element_key)
+            # Return the healed selector
+            healed_selector = knowledge_db.get(context_key, {}).get(element_key, "")
+            if healed_selector:
+                print(f"    [Heal Success] New selector for '{element_key}': {healed_selector}")
+                return str(healed_selector)
+            else:
+                print(f"    [Heal Failed] Could not find replacement for '{element_key}'")
+                return ""
 
-                if selector:
-                    print(f"    [Auto-Heal Success] New selector for '{element_key}': {selector}")
-                else:
-                    print(f"    [Auto-Heal Failed] AI could not find '{element_key}' even after refresh.")
-            except Exception as e:
-                print(f"    [Auto-Heal Error] AI analysis failed for '{element_key}': {e}")
-                selector = None
-
-        # Return selector or empty string (callers should handle empty strings)
-        result = selector or ""
-        return str(result)
+        except Exception as e:
+            print(f"    [Heal Error] AI healing failed for '{element_key}': {e}")
+            return ""
 
     @staticmethod
     def has_selectors_for_context(context: str) -> bool:

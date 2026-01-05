@@ -7,14 +7,13 @@ import base64
 from playwright.async_api import Page
 
 from Helpers.utils import LOG_DIR
-from Helpers.Neo_Helpers.Managers.api_key_manager import gemini_api_call_with_rotation
+from Helpers.Neo_Helpers.Managers.api_key_manager import leo_api_call_with_rotation
 from Helpers.Neo_Helpers.Managers.prompt_manager import generate_dynamic_prompt
-from google.generativeai.types import GenerationConfig
 
 
 async def get_visual_ui_analysis(page: Page, context_key: str = "unknown") -> str:
     """
-    Captures screenshot and performs visual UI analysis using Gemini AI.
+    Captures screenshot and performs visual UI analysis using Leo AI.
 
     Args:
         page: Playwright Page object
@@ -46,9 +45,9 @@ async def get_visual_ui_analysis(page: Page, context_key: str = "unknown") -> st
         except ValueError:  # Prompt not found
             prompt = generate_dynamic_prompt("ui_analysis", "vision")  # Fallback
 
-        response = gemini_api_call_with_rotation(
+        response = await leo_api_call_with_rotation(
             [prompt, image_data],
-            generation_config=GenerationConfig(temperature=0.1)
+            generation_config={"temperature": 0.1}
         )
 
         if response and response.candidates:

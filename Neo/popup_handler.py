@@ -19,7 +19,7 @@ class PopupHandler:
 
     Implements 5-step dismissal process:
     1. Standard dismissal (context-aware selectors)
-    2. AI analysis (Gemini vision)
+    2. AI analysis (Leo AI vision)
     3. Force dismissal (JavaScript injection, layered modal handling)
     4. Comprehensive fallback (all known selectors)
     5. Continuous monitoring (optional)

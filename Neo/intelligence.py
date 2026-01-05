@@ -19,7 +19,7 @@ from .utils import clean_json_response
 
 # Legacy compatibility imports
 from Helpers.Neo_Helpers.Managers.db_manager import knowledge_db
-from Helpers.Neo_Helpers.Managers.api_key_manager import gemini_api_call_with_rotation
+from Helpers.Neo_Helpers.Managers.api_key_manager import leo_api_call_with_rotation
 
 
 # Legacy compatibility functions - delegate to specialized modules
@@ -41,6 +41,49 @@ def get_selector(context: str, element_key: str) -> str:
 async def get_selector_auto(page, context_key: str, element_key: str) -> str:
     """Delegate to SelectorManager"""
     return await SelectorManager.get_selector_auto(page, context_key, element_key)
+
+
+async def get_selector_with_fallback(page, context_key: str, element_key: str, action_description: str = "") -> str:
+    """
+    ROBUST SELECTOR ACCESSOR:
+    1. Gets selector from DB
+    2. If selector fails during use, attempts on-demand healing
+    3. Returns healed selector or empty string
+
+    Args:
+        page: Playwright page object
+        context_key: Page context (e.g., 'fb_match_page')
+        element_key: Element identifier (e.g., 'search_icon')
+        action_description: Description of what we're trying to do (for logging)
+
+    Returns:
+        str: Valid selector or empty string if all attempts fail
+    """
+    from .selector_manager import SelectorManager
+
+    # Get initial selector
+    selector = await get_selector_auto(page, context_key, element_key)
+    if not selector:
+        print(f"    [Selector Fallback] No selector found for '{element_key}' in '{context_key}'")
+        return ""
+
+    # Try to use the selector
+    try:
+        # Quick validation - check if element exists
+        count = await page.locator(selector).count()
+        if count > 0:
+            return selector  # Selector works, return it
+    except Exception as e:
+        failure_reason = f"Validation failed: {str(e)}"
+        print(f"    [Selector Fallback] '{element_key}' selector failed: {selector}")
+
+    # Selector failed, attempt healing
+    healed_selector = await SelectorManager.heal_selector_on_failure(
+        page, context_key, element_key,
+        f"Failed during {action_description}: {selector}"
+    )
+
+    return healed_selector
 
 
 async def extract_league_data(page, context_key: str = "home_page"):
@@ -146,6 +189,7 @@ __all__ = [
     'attempt_visual_recovery',
     'get_selector',
     'get_selector_auto',
+    'get_selector_with_fallback',
     'extract_league_data',
     'fb_universal_popup_dismissal',
     'fb_tooltip_btn',

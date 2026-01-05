@@ -7,7 +7,7 @@ import base64
 import json
 from typing import Dict, Any, Optional
 
-from Helpers.Neo_Helpers.Managers.api_key_manager import gemini_api_call_with_rotation
+from Helpers.Neo_Helpers.Managers.api_key_manager import leo_api_call_with_rotation
 from Helpers.Neo_Helpers.Managers.db_manager import knowledge_db
 
 
@@ -70,14 +70,14 @@ class LeoPopupAnalyzer:
             # Create context-aware prompt
             prompt = self._create_analysis_prompt(html_content, context)
 
-            # Call API (redirected to Ollama)
-            response = gemini_api_call_with_rotation(
+            # Call API (redirected to Leo AI)
+            response = await leo_api_call_with_rotation(
                 [prompt, {"inline_data": {"mime_type": "image/png", "data": img_data}}],
                 generation_config={
                     "temperature": 0.1,
                     "response_mime_type": "application/json"
                 },
-                # Safety settings ignored by Ollama implementation
+                # Safety settings ignored by local implementation
                 timeout=self.analysis_timeout
             )
 

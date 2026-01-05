@@ -80,16 +80,110 @@ class PageAnalyzer:
                 if context_key == "fb_login_page" and not selector_found:
                     return False
             
-            # 4. Handle Schedule vs Home distinction (Schedule includes /sport/football/)
-            if context_key == "fb_main_page" and "/sport/football" in url:
-                return False
-
             if url_match or title_match:
                 return True
                 
             return False
         except Exception:
             return True
+
+    @staticmethod
+    async def discover_state_via_ai(page) -> Dict[str, Any]:
+        """
+        Autonomous State Discovery.
+        Used when the system is on an unknown page or modal.
+        Uses Leo AI to analyze HTML content to determine context and next steps.
+        """
+        from .prompts import STATE_DISCOVERY_PROMPT
+        from Helpers.Neo_Helpers.Managers.api_key_manager import leo_api_call_with_rotation
+
+        print("    [SMART NAV] Unrecognized page state. Triggering Leo AI Discovery...")
+
+        try:
+            # 1. Extract HTML content (focus on visible, interactive elements)
+            html_content = await page.evaluate("""
+                () => {
+                    // Get key structural elements
+                    const getVisibleText = (element) => {
+                        if (!element) return '';
+                        const style = window.getComputedStyle(element);
+                        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                            return '';
+                        }
+                        return element.textContent.trim().substring(0, 200); // Limit text length
+                    };
+
+                    const extractElement = (selector, label) => {
+                        const el = document.querySelector(selector);
+                        return el ? `${label}: "${getVisibleText(el)}"` : '';
+                    };
+
+                    // Collect key page information
+                    const pageInfo = [];
+
+                    // Page title and URL
+                    pageInfo.push(`PAGE_TITLE: "${document.title}"`);
+                    pageInfo.push(`PAGE_URL: "${window.location.href}"`);
+
+                    // Common interactive elements
+                    const selectors = [
+                        ['h1', 'MAIN_HEADING'],
+                        ['h2', 'SUB_HEADING'],
+                        ['[role="dialog"]', 'MODAL_DIALOG'],
+                        ['.modal, .popup, .overlay', 'MODAL_OVERLAY'],
+                        ['form', 'FORM_ELEMENT'],
+                        ['input[type="text"], input[type="email"], input[type="tel"]', 'TEXT_INPUT'],
+                        ['input[type="password"]', 'PASSWORD_INPUT'],
+                        ['button', 'BUTTONS'],
+                        ['a[href]', 'LINKS'],
+                        ['[data-testid*="login"], [class*="login"]', 'LOGIN_ELEMENT'],
+                        ['[data-testid*="search"], [class*="search"]', 'SEARCH_ELEMENT'],
+                        ['[data-testid*="menu"], .menu, nav', 'NAVIGATION'],
+                        ['.error, .alert, [role="alert"]', 'ERROR_MESSAGE'],
+                        ['.loading, .spinner', 'LOADING_INDICATOR']
+                    ];
+
+                    selectors.forEach(([sel, label]) => {
+                        const elements = document.querySelectorAll(sel);
+                        if (elements.length > 0) {
+                            const texts = Array.from(elements).map(getVisibleText).filter(t => t);
+                            if (texts.length > 0) {
+                                pageInfo.push(`${label}: ${texts.slice(0, 3).join(' | ')}`);
+                            }
+                        }
+                    });
+
+                    // Body text sample (first meaningful paragraph)
+                    const bodyText = document.body.textContent.trim().substring(0, 500);
+                    pageInfo.push(`BODY_SAMPLE: "${bodyText}"`);
+
+                    return pageInfo.filter(item => item.includes(': "') && item.split(': "')[1].length > 1).join('\\n');
+                }
+            """)
+
+            # 2. Format prompt with HTML content
+            formatted_prompt = STATE_DISCOVERY_PROMPT.format(html_content=html_content)
+
+            # 3. Ask Leo AI for analysis
+            response = await leo_api_call_with_rotation(
+                formatted_prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+
+            if response and hasattr(response, 'text') and response.text:
+                import json
+                from .utils import clean_json_response
+
+                cleaned = clean_json_response(response.text)
+                data = json.loads(cleaned)
+
+                print(f"    [SMART NAV] Leo AI identifies state: {data.get('state')} | Milestone: {data.get('milestone_found')}")
+                return data
+
+        except Exception as e:
+            print(f"    [SMART NAV ERROR] AI state discovery failed: {e}")
+
+        return {"state": "unknown", "is_modal": False}
 
     @staticmethod
     async def extract_league_data(

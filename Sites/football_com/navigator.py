@@ -52,7 +52,6 @@ async def load_or_create_session(context: BrowserContext) -> Tuple[BrowserContex
         page = context.pages[0]
 
     # Navigate to check state
-    # Navigate to check state
     try:
         # Smart Resume Check
         current_url = page.url

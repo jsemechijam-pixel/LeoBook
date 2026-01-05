@@ -6063,6 +6063,15 @@
         "betslip_clear_all": ".m-icon-delete",
         "confirm_bet_button": "button:has-text('Confirm')",
         "top_right_login": ".m-btn-login",
-        "cookie_accept_button": "#onetrust-accept-btn-handler"
+        "cookie_accept_button": "button[data-uid='cookie-accept']",
+        "sport_container": "div[data-uid='sport-container']",
+        "league_header": "div[data-uid='league-header']",
+        "match_rows": "div[data-uid='match-row']",
+        "top_icon_close": "div[data-uid='top-icon-close']",
+        "bet_slip_fab_icon_button": "button[data-uid='bet-slip-fab']",
+        "navbar_balance": "div[data-uid='navbar-balance']",
+        "currency": "div[data-uid='currency']",
+        "tooltip_container": "div[data-uid='tooltip-container']",
+        "tooltip_close_btn": "button[data-uid='tooltip-close']"
     }
 }

@@ -9,9 +9,9 @@ DEFAULT_API_URL = "http://127.0.0.1:8080/v1/chat/completions"
 
 import asyncio
 
-async def gemini_api_call_with_rotation(prompt_content, generation_config=None, **kwargs):
+async def leo_api_call_with_rotation(prompt_content, generation_config=None, **kwargs):
     """
-    Redirects legacy Gemini calls to our local compatible AI server (llama-server/Qwen3-VL).
+    Redirects legacy calls to our local compatible Leo AI server (llama-server/Qwen3-VL).
     Uses asyncio.to_thread to keep the event loop running during the blocking request.
     """
     api_url = os.getenv("LLM_API_URL", DEFAULT_API_URL)
@@ -81,8 +81,8 @@ async def gemini_api_call_with_rotation(prompt_content, generation_config=None, 
             data = response.json()
             ans = data['choices'][0]['message']['content']
 
-            # Wrap response to match Mock Gemini object interface
-            class MockGeminiResponse:
+            # Wrap response to match Mock Leo AI object interface
+            class MockLeoResponse:
                 def __init__(self, content):
                     self.text = content
                     self.candidates = [
@@ -93,7 +93,7 @@ async def gemini_api_call_with_rotation(prompt_content, generation_config=None, 
                         })
                     ]
 
-            return MockGeminiResponse(ans)
+            return MockLeoResponse(ans)
 
         except Exception as e:
             # Handle non-503 errors or final failure

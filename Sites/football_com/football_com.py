@@ -83,7 +83,7 @@ async def run_football_com_booking(playwright: Playwright):
     try:
         context = await playwright.chromium.launch_persistent_context(
             user_data_dir=str(user_data_dir),
-            headless=True,
+            headless=False,
             args=[
                 "--disable-dev-shm-usage", 
                 "--no-sandbox", 
@@ -91,7 +91,7 @@ async def run_football_com_booking(playwright: Playwright):
                 "--disable-extensions",
                 "--disable-blink-features=AutomationControlled" 
             ],
-            viewport={'width': 375, 'height': 812}, # Taller viewport for modern mobile
+            viewport={'width': 375, 'height': 612}, # Taller viewport for modern mobile
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
             timeout=120000 # Further increased timeout
         )

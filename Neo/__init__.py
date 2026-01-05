@@ -6,7 +6,7 @@ This package contains the core intelligence components for LeoBook:
 - ML Model: Machine learning prediction ensemble
 - Rule Engine: Comprehensive rule-based prediction logic
 - Selector Manager: CSS selector storage and auto-healing
-- Visual Analyzer: Screenshot analysis and Gemini vision API
+- Visual Analyzer: Screenshot analysis and Leo AI vision
 - Popup Handler: Universal popup dismissal and UI recovery
 - Page Analyzer: Webpage content analysis and data extraction
 

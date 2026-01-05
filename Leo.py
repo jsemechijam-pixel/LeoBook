@@ -144,7 +144,7 @@ async def main():
                 # --- PHASE 0: REVIEW (Observe past actions) ---
                 print("\n   [Phase 0] Checking for past matches to review...")
                 from Helpers.DB_Helpers.review_outcomes import run_review_process
-                await run_review_process(p)
+                #await run_review_process(p)
 
                 # Print prediction accuracy report
                 print("   [Phase 0] Analyzing prediction accuracy across all reviewed matches...")
