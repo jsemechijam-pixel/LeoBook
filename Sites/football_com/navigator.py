@@ -74,13 +74,20 @@ async def load_or_create_session(context: BrowserContext) -> Tuple[BrowserContex
 
         
         # Validate session by checking for login elements
-        login_sel = await get_selector_auto(page, "fb_global", "top_right_login")
-        
+        login_selectors = [
+            await get_selector_auto(page, "fb_global", "top_right_login"),
+            ".m-btn-login",  # Direct fallback
+            "#user-menu",
+            "div#user-menu"
+        ]
+
         needs_login = False
-        if login_sel:
-            if await page.locator(login_sel).count() > 0 and await page.locator(login_sel).is_visible():
+        for login_sel in login_selectors:
+            if login_sel and await page.locator(login_sel).count() > 0 and await page.locator(login_sel).is_visible():
                 needs_login = True
-        
+                print(f"  [Auth] Found login button with selector: {login_sel}")
+                break
+
         if needs_login:
             print("  [Auth] Session expired or not logged in. Performing new login...")
             await perform_login(page)
@@ -105,12 +112,75 @@ async def perform_login(page: Page):
     
     try:
         # Click Top Login Button (if visible)
-        login_selector = await get_selector_auto(page, "fb_login_page", "top_right_login")
-        if login_selector and await page.locator(login_selector).count() > 0:
-             if await page.locator(login_selector).is_visible():
-                 await page.click(login_selector)
-                 print("  [Login] Login page clicked")
-                 await asyncio.sleep(3)
+        # Try multiple selectors for the login button since the site might change
+        login_selectors = [
+            await get_selector_auto(page, "fb_global", "top_right_login"),
+            await get_selector_auto(page, "fb_login_page", "top_right_login"),
+            ".m-btn-login",  # Direct fallback
+            "#user-menu",
+            "div#user-menu"
+        ]
+
+        print(f"  [Login] Trying login button selectors: {login_selectors}")
+
+        # Debug: Print all clickable elements that might be login buttons
+        try:
+            all_buttons = await page.query_selector_all('button, a, div[role="button"], span[role="button"]')
+            print(f"  [Debug] Found {len(all_buttons)} potential clickable elements")
+            for i, btn in enumerate(all_buttons[:10]):  # Check first 10
+                try:
+                    text = await btn.inner_text()
+                    classes = await btn.get_attribute('class') or ''
+                    if 'login' in text.lower() or 'login' in classes.lower() or 'user' in classes.lower():
+                        print(f"  [Debug] Potential login element {i}: text='{text}', class='{classes}'")
+                except:
+                    pass
+        except Exception as e:
+            print(f"  [Debug] Could not enumerate buttons: {e}")
+
+        login_clicked = False
+        for login_sel in login_selectors:
+            if not login_sel:
+                continue
+            try:
+                if await page.locator(login_sel).count() > 0 and await page.locator(login_sel).is_visible():
+                    await page.locator(login_sel).click()
+                    print(f"  [Login] Login button clicked using selector: {login_sel}")
+                    login_clicked = True
+                    await asyncio.sleep(3)
+                    break
+            except Exception as e:
+                print(f"  [Login] Failed to click login with {login_sel}: {e}")
+                continue
+
+        # If all selectors failed, try a more aggressive search
+        if not login_clicked:
+            print("  [Login] All selectors failed, trying aggressive search...")
+            try:
+                # Try to find any element with login-related text
+                login_elements = [
+                    page.locator('text=/login/i'),
+                    page.locator('text=/sign in/i'),
+                    page.locator('[data-testid*="login"]'),
+                    page.locator('[aria-label*="login" i]'),
+                ]
+
+                for locator in login_elements:
+                    try:
+                        if await locator.count() > 0:
+                            await locator.first.click()
+                            print("  [Login] Found and clicked login element via text/attribute search")
+                            login_clicked = True
+                            await asyncio.sleep(3)
+                            break
+                    except Exception as e:
+                        continue
+
+            except Exception as e:
+                print(f"  [Login] Aggressive search failed: {e}")
+
+        if not login_clicked:
+            print("  [Login] Warning: Could not find or click login button")
         
         # Get Selectors via Auto-Heal
         mobile_selector = await get_selector_auto(page, "fb_login_page", "center_input_mobile_number")

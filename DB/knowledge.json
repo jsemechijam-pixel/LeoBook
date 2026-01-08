@@ -3895,7 +3895,7 @@
         "pop_up_match_overlay_content": "div[data-testid=\"wcl-tooltipOnboardingContent\"]"
     },
     "fb_login_page": {
-        "center_input_mobile_number": "div.m-input-wrapper.mobile-number input[placeholder=\"Mobile Number\"]",
+        "center_input_mobile_number": "input[type=\"tel\"]",
         "center_input_password": "div.m-input-wrapper.password input[type=\"password\"]",
         "bottom_button_login": "div.m-tabs-tabpane:not([style*=\"display: none\"]) button.af-button--primary",
         "center_link_forgot_password": ".forget-password span[data-cms-key=\"forgot_password\"]",

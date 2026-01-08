@@ -42,6 +42,74 @@ async def ensure_bet_insights_collapsed(page: Page):
     except Exception as e:
         print(f"    [UI] Bet Insights collapse check failed (non-critical): {e}")
 
+
+async def check_match_start_time(page: Page) -> bool:
+    """Check if the match is within 10 minutes of starting time."""
+    try:
+        # Get match time using dynamic selector
+        time_sel = await get_selector_auto(page, "fb_match_page", "match_detail_time_elapsed")
+        if not time_sel:
+            time_sel = await get_selector_auto(page, "fb_match_page", "match_detail_status")
+
+        if time_sel:
+            if await page.locator(time_sel).count() > 0:
+                time_text = await page.locator(time_sel).first.inner_text(timeout=3000)
+                if time_text:
+                    time_text = time_text.strip().lower()
+                    print(f"    [Time Check] Match status: '{time_text}'")
+
+                    # Check for ongoing or finished matches
+                    if any(keyword in time_text for keyword in ['live', 'in play', 'ft', 'finished', 'ended', 'postponed']):
+                        print("    [Time Check] Match is already live or finished. Skipping.")
+                        return False
+
+                    # Check for countdown time
+                    if ':' in time_text and any(char.isdigit() for char in time_text):
+                        # Try to parse time format like "45:00" or "15:30"
+                        try:
+                            # Extract time part (assume format like "15:30" or just "15:30")
+                            time_part = time_text.replace(' ', '')
+                            if time_part.count(':') == 1:
+                                minutes_str, seconds_str = time_part.split(':')
+                                if minutes_str.isdigit() and seconds_str.isdigit():
+                                    minutes = int(minutes_str)
+                                    seconds = int(seconds_str)
+                                    total_seconds = minutes * 60 + seconds
+
+                                    # Check if match is within 10 minutes (600 seconds) of starting
+                                    if total_seconds <= 600:  # 10 minutes = 600 seconds
+                                        print(f"    [Time Check] Match starts in {minutes}:{seconds:02d} ({total_seconds}s) - within 10 minutes. Proceeding.")
+                                        return True
+                                    else:
+                                        print(f"    [Time Check] Match starts in {minutes}:{seconds:02d} ({total_seconds}s) - too far ahead. Skipping.")
+                                        return False
+                        except ValueError:
+                            pass
+
+                    # If we can't parse the time but it's not clearly live/finished, assume it's okay to check
+                    print("    [Time Check] Could not parse exact time, but match doesn't appear live. Proceeding.")
+                    return True
+
+        # Fallback: check for live indicators
+        live_indicators = [
+            "div.live-in-play-icon",
+            "[data-testid='wcl-icon-live']",
+            ".live-tag",
+            "span.live-in-play-icon"
+        ]
+
+        for indicator in live_indicators:
+            if await page.locator(indicator).count() > 0:
+                print("    [Time Check] Found live indicator. Match is already in progress. Skipping.")
+                return False
+
+        print("    [Time Check] No clear time or live indicators found. Assuming match is upcoming.")
+        return True
+
+    except Exception as e:
+        print(f"    [Time Check] Error checking match time: {e}. Assuming safe to proceed.")
+        return True
+
 async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_predictions: List[Dict], target_date: str):
     """Visit matched URLs and place bets using prediction mappings."""
     selected_bets = 0
@@ -79,6 +147,12 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
             await neo_popup_dismissal(page, match_url)
             await ensure_bet_insights_collapsed(page)
 
+            # Check if match is within 10 minutes of starting
+            if not await check_match_start_time(page):
+                print(f"    [Info] Skipping {pred['home_team']} vs {pred['away_team']} - match not within 10 minutes of start")
+                update_prediction_status(match_id, target_date, 'skipped_time')
+                continue
+
             # After successful navigation, get the main frame and place bets
             frame = await get_main_frame(page)
             if not frame:
@@ -97,6 +171,11 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
             if m_name.endswith("(DNB)"):
                 search_market_name = "Draw No Bet"
                 print(f"    [Betting] Adjusted search for {m_name} -> {search_market_name}")
+
+            # Special handling for Over/Under - try multiple search terms
+            search_terms = [search_market_name]
+            if search_market_name == "Goals Over/Under":
+                search_terms = ["Goals Over/Under", "Over/Under", "Total Goals", "Match Goals", "Goal Line"]
 
             print(f"    [Betting] Looking for market '{search_market_name}' with outcome '{o_name}'")
 
@@ -121,65 +200,84 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
                 await capture_debug_snapshot(page, f"fail_search_icon_{match_id}", "Search icon selector not found or not clickable.")
                 continue
 
-            # Find and fill search input using dynamic selector
-            input_sel = await get_selector_auto(page, "fb_match_page", "search_input")
-            input_found = False
-            
-            if input_sel:
-                try:
-                    if await frame.locator(input_sel).count() > 0:
-                        search_input = frame.locator(input_sel).first
-                        await search_input.fill(search_market_name)
-                        await asyncio.sleep(0.5)
-                        await page.keyboard.press("Enter")
-                        print(f"    [Betting] Filled '{search_market_name}' and pressed Enter.")
-                        input_found = True
-                        await asyncio.sleep(3) # Wait for filter to apply
-                except Exception as e:
-                    print(f"    [Betting] Input selector failed: {input_sel} - {e}")
-            else:
-                print("    [Betting] Input selector missing in knowledge.json")
-
-            if not input_found:
-                print("    [Betting] Could not find search input")
-                await capture_debug_snapshot(page, f"fail_search_input_{match_id}", "Search input not found after clicking search icon.")
-                continue
-
-            # Select Outcome using dynamic selector
-            row_container = await get_selector_auto(page, "fb_match_page", "outcome_row_container")
+            # Try each search term until we find the market
             bet_selected = False
-            
-            if row_container:
-                # Check if we actually have any rows visible after search
-                try:
-                    visible_rows = await frame.locator(row_container).count()
-                    if visible_rows == 0:
-                        print(f"    [Betting] No outcome rows visible after searching for '{search_market_name}'")
-                        await capture_debug_snapshot(page, f"vis_rows_zero_{match_id}", f"Search: {search_market_name}. No rows in container.")
-                except:
-                    pass
+            for search_term in search_terms:
+                print(f"    [Betting] Trying search term: '{search_term}'")
 
-                # Construct specific selector
-                # Construct specific selector
-                outcome_sel = f"{row_container} > div:has-text('{o_name}')"
-                try:
-                    if await frame.locator(outcome_sel).count() > 0:
-                        count_before = await get_bet_slip_count(page)
-                        if await robust_click(frame.locator(outcome_sel).first, page):
-                            await asyncio.sleep(2)
-                            if await get_bet_slip_count(page) > count_before:
-                                selected_bets += 1
-                                update_prediction_status(match_id, target_date, 'booked')
-                                # Sync with Registry
-                                site_id = get_site_match_id(target_date, pred['home_team'], pred['away_team'])
-                                update_site_match_status(site_id, 'booked', fixture_id=match_id)
-                                
-                                print(f"    [Success] Added bet for {pred['home_team']} vs {pred['away_team']}")
-                                bet_selected = True
-                except Exception as e:
-                    print(f"    [Betting] Outcome selector failed: {outcome_sel} - {e}")
-            else:
-                 print("    [Betting] Outcome row container missing in knowledge.json")
+                # Find and fill search input using dynamic selector
+                input_sel = await get_selector_auto(page, "fb_match_page", "search_input")
+                input_found = False
+
+                if input_sel:
+                    try:
+                        if await frame.locator(input_sel).count() > 0:
+                            search_input = frame.locator(input_sel).first
+                            # Clear previous input
+                            await search_input.fill("")
+                            await asyncio.sleep(0.5)
+                            await search_input.fill(search_term)
+                            await asyncio.sleep(0.5)
+                            await page.keyboard.press("Enter")
+                            print(f"    [Betting] Filled '{search_term}' and pressed Enter.")
+                            input_found = True
+                            await asyncio.sleep(3) # Wait for filter to apply
+                    except Exception as e:
+                        print(f"    [Betting] Input selector failed: {input_sel} - {e}")
+                else:
+                    print("    [Betting] Input selector missing in knowledge.json")
+
+                if not input_found:
+                    print("    [Betting] Could not find search input")
+                    continue
+
+                # Select Outcome using dynamic selector
+                row_container = await get_selector_auto(page, "fb_match_page", "outcome_row_container")
+
+                if row_container:
+                    # Check if we actually have any rows visible after search
+                    try:
+                        visible_rows = await frame.locator(row_container).count()
+                        if visible_rows == 0:
+                            print(f"    [Betting] No outcome rows visible after searching for '{search_term}'")
+                            continue
+                        print(f"    [Betting] Found {visible_rows} outcome rows after searching for '{search_term}'")
+                    except:
+                        pass
+
+                    # Construct specific selector - try different selectors for different markets
+                    if "Over" in o_name or "Under" in o_name:
+                        # For Over/Under, try button first, then div
+                        outcome_sel = f"button:has-text('{o_name}')"
+                        if await frame.locator(outcome_sel).count() == 0:
+                            outcome_sel = f"div:has-text('{o_name}')"
+                        if await frame.locator(outcome_sel).count() == 0:
+                            outcome_sel = f"span:has-text('{o_name}')"
+                    else:
+                        outcome_sel = f"{row_container} > div:has-text('{o_name}')"
+                    try:
+                        outcome_count = await frame.locator(outcome_sel).count()
+                        if outcome_count > 0:
+                            print(f"    [Betting] Found {outcome_count} matches for outcome '{o_name}'")
+                            count_before = await get_bet_slip_count(page)
+                            if await robust_click(frame.locator(outcome_sel).first, page):
+                                await asyncio.sleep(2)
+                                if await get_bet_slip_count(page) > count_before:
+                                    selected_bets += 1
+                                    update_prediction_status(match_id, target_date, 'booked')
+                                    # Sync with Registry
+                                    site_id = get_site_match_id(target_date, pred['home_team'], pred['away_team'])
+                                    update_site_match_status(site_id, 'booked', fixture_id=match_id)
+
+                                    print(f"    [Success] Added bet for {pred['home_team']} vs {pred['away_team']}")
+                                    bet_selected = True
+                                    break  # Exit search term loop
+                        else:
+                            print(f"    [Betting] Outcome '{o_name}' not found in rows for '{search_term}'")
+                    except Exception as e:
+                        print(f"    [Betting] Outcome selector failed: {outcome_sel} - {e}")
+                else:
+                     print("    [Betting] Outcome row container missing in knowledge.json")
 
             if bet_selected:
                 continue
@@ -203,8 +301,9 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
                 print("    [Fatal] Browser or Page closed during betting loop. Aborting.")
                 raise e
 
-    print(f"  [Summary] Selected {selected_bets} bets for {target_date}.")
-    if await get_bet_slip_count(page) > 0:
+    final_slip_count = await get_bet_slip_count(page)
+    print(f"  [Summary] Selected {final_slip_count} bets for {target_date}.")
+    if final_slip_count > 0:
         await finalize_accumulator(page, target_date)
 
 async def finalize_accumulator(page: Page, target_date: str) -> bool:
