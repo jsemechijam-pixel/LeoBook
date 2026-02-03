@@ -99,8 +99,12 @@ async def force_clear_slip(page: Page):
     """
     Aggressively ensures the bet slip is empty. 
     Retries clearing logic 3 times. 
-    Raises Exception if slip cannot be cleared (triggering session reset).
+    Escalation: If slip cannot be cleared, it deletes the session data and raises Exception.
     """
+    import os
+    import shutil
+    from pathlib import Path
+
     for attempt in range(3):
         try:
             count = await get_bet_slip_count(page)
@@ -120,5 +124,19 @@ async def force_clear_slip(page: Page):
             print(f"    [Slip Error] Attempt {attempt+1} failed: {e}")
             await asyncio.sleep(2.0)
     
-    # If we reach here, we failed
-    raise Exception("CRITICAL: Failed to clear bet slip after 3 attempts. Session tainted.")
+    # --- ESCALATION LOGIC ---
+    print("    [CRITICAL] Failed to clear bet slip. Escalating: Deleting Session Data.")
+    user_data_dir = Path("DB/ChromeData_v3")
+    if user_data_dir.exists():
+        try:
+            # We can't delete it while browser is open in this process, 
+            # but we can mark it for deletion or try to close context first.
+            await page.context.close()
+            # On some OS, we might need to wait for process to fully release
+            await asyncio.sleep(2)
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+            print("    [System] Chrome data directory deleted for clean restart.")
+        except Exception as del_e:
+            print(f"    [System Error] Could not delete data dir: {del_e}")
+
+    raise Exception("CRITICAL: Failed to clear bet slip after 3 attempts. Session wiped.")

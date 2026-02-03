@@ -28,22 +28,40 @@ class MLModel:
     @staticmethod
     def prepare_features(vision_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract and prepare features for ML prediction"""
+        if not isinstance(vision_data, dict):
+            return None
+
         h2h_data = vision_data.get("h2h_data", {})
         standings = vision_data.get("standings", [])
+        
+        if not isinstance(h2h_data, dict) or not isinstance(standings, list):
+            return None
+
         home_team = h2h_data.get("home_team")
         away_team = h2h_data.get("away_team")
 
         if not home_team or not away_team or not standings:
             return None
 
-        # Basic team data
-        rank = {t["team_name"]: t["position"] for t in standings}
-        gd = {t["team_name"]: t.get("goal_difference", 0) for t in standings}
+        # Basic team data - safer extraction
+        rank = {}
+        gd = {}
+        for t in standings:
+            if isinstance(t, dict) and "team_name" in t:
+                team = t["team_name"]
+                rank[team] = t.get("position", 20)
+                gd[team] = t.get("goal_difference", 0)
 
         home_position = rank.get(home_team, 20)
         away_position = rank.get(away_team, 20)
         home_gd = gd.get(home_team, 0)
         away_gd = gd.get(away_team, 0)
+        
+        # Ensure values are not None
+        home_position = home_position if home_position is not None else 20
+        away_position = away_position if away_position is not None else 20
+        home_gd = home_gd if home_gd is not None else 0
+        away_gd = away_gd if away_gd is not None else 0
 
         # Form data
         home_form = h2h_data.get("home_last_10_matches", [])

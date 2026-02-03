@@ -24,14 +24,21 @@ class TagGenerator:
         return False
 
     @staticmethod
-    def classify_opponent_strength(rank: int, league_size: int) -> str:
+    def classify_opponent_strength(rank: Any, league_size: int) -> str:
         """Classify opponent strength based on league position"""
-        if rank <= (league_size // 4):
-            return 'top'
-        elif rank <= (league_size // 2):
+        if rank is None:
+            return 'mid'  # Fallback
+        
+        try:
+            rank_int = int(rank)
+            if rank_int <= (league_size // 4):
+                return 'top'
+            elif rank_int <= (league_size // 2):
+                return 'mid'
+            else:
+                return 'bottom'
+        except (ValueError, TypeError):
             return 'mid'
-        else:
-            return 'bottom'
 
     @staticmethod
     def _parse_match_result(match: Dict, team_name: str) -> Tuple[str, int, int, str]:
@@ -199,18 +206,28 @@ class TagGenerator:
         away_slug = away_team.replace(" ", "_").upper()
 
         tags = []
-        if hr <= 3: tags.append(f"{home_slug}_TOP3")
-        if hr > league_size - 5: tags.append(f"{home_slug}_BOTTOM5")
-        if ar <= 3: tags.append(f"{away_slug}_TOP3")
-        if ar > league_size - 5: tags.append(f"{away_slug}_BOTTOM5")
-        if hgd > 0: tags.append(f"{home_slug}_GD_POS")
-        if hgd < 0: tags.append(f"{home_slug}_GD_NEG")
-        if agd > 0: tags.append(f"{away_slug}_GD_POS")
-        if agd < 0: tags.append(f"{away_slug}_GD_NEG")
-        if hr < ar - 8: tags.append(f"{home_slug}_TABLE_ADV8+")
-        if ar < hr - 8: tags.append(f"{away_slug}_TABLE_ADV8+")
-        if hgd > 10: tags.append(f"{home_slug}_GD_POS_STRONG")
-        if hgd < -10: tags.append(f"{home_slug}_GD_NEG_WEAK")
-        if agd > 10: tags.append(f"{away_slug}_GD_POS_STRONG")
-        if agd < -10: tags.append(f"{away_slug}_GD_NEG_WEAK")
+        # Position-based tags
+        if hr is not None and hr <= 3: tags.append(f"{home_slug}_TOP3")
+        if hr is not None and hr > league_size - 5: tags.append(f"{home_slug}_BOTTOM5")
+        if ar is not None and ar <= 3: tags.append(f"{away_slug}_TOP3")
+        if ar is not None and ar > league_size - 5: tags.append(f"{away_slug}_BOTTOM5")
+        
+        # GD-based tags
+        if hgd is not None:
+            if hgd > 0: tags.append(f"{home_slug}_GD_POS")
+            if hgd < 0: tags.append(f"{home_slug}_GD_NEG")
+            if hgd > 10: tags.append(f"{home_slug}_GD_POS_STRONG")
+            if hgd < -10: tags.append(f"{home_slug}_GD_NEG_WEAK")
+            
+        if agd is not None:
+            if agd > 0: tags.append(f"{away_slug}_GD_POS")
+            if agd < 0: tags.append(f"{away_slug}_GD_NEG")
+            if agd > 10: tags.append(f"{away_slug}_GD_POS_STRONG")
+            if agd < -10: tags.append(f"{away_slug}_GD_NEG_WEAK")
+            
+        # Table disadvantage
+        if hr is not None and ar is not None:
+            if hr < ar - 8: tags.append(f"{home_slug}_TABLE_ADV8+")
+            if ar < hr - 8: tags.append(f"{away_slug}_TABLE_ADV8+")
+            
         return list(set(tags))

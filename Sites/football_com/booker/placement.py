@@ -159,7 +159,7 @@ async def finalize_accumulator(page: Page, target_date: str) -> bool:
         slip_trigger = SelectorManager.get_selector_strict("fb_match_page", "slip_trigger_button")
         if slip_trigger and await page.locator(slip_trigger).count() > 0:
              await robust_click(page.locator(slip_trigger).first, page)
-             await asyncio.sleep(3)
+             await asyncio.sleep(2)
 
         # 2. Select Multiple Tab
         multi_tab = SelectorManager.get_selector_strict("fb_match_page", "slip_tab_multiple")
@@ -181,7 +181,7 @@ async def finalize_accumulator(page: Page, target_date: str) -> bool:
         place_btn = SelectorManager.get_selector_strict("fb_match_page", "betslip_place_bet_button") or SelectorManager.get_selector_strict("fb_match_page", "place_bet_button_by_attribute")
         if place_btn and await page.locator(place_btn).count() > 0:
              print("    [Booking] Clicking Place Bet...")
-             await robust_click(page.locator(place_btn).first, page)
+             await robust_click(place_btn, page)
              await asyncio.sleep(3)
         else:
              print("    [Error] Place bet button not found!")
@@ -190,14 +190,14 @@ async def finalize_accumulator(page: Page, target_date: str) -> bool:
         # 5. Confirm (if dialog)
         confirm_btn = SelectorManager.get_selector_strict("fb_match_page", "confirm_bet_button") or SelectorManager.get_selector_strict("fb_match_page", "confirm_bet_button_by_attribute")
         if confirm_btn and await page.locator(confirm_btn).count() > 0:
-             if await page.locator(confirm_btn).first.is_visible():
+             if await page.locator(confirm_btn).first.isVisible():
                   print("    [Booking] Confirming bet...")
-                  await robust_click(page.locator(confirm_btn).first, page)
+                  await robust_click(confirm_btn, page)
                   await asyncio.sleep(5)
 
         # 6. Post-Verification (Balance & Code)
         # Wait for booking code
-        booking_code = await extract_booking_details(page)
+        await extract_booking_details(page)
         
         # Mandatory Balance Check
         post_balance = await extract_balance(page)
@@ -205,28 +205,108 @@ async def finalize_accumulator(page: Page, target_date: str) -> bool:
         
         if post_balance < pre_balance:
              print("    [Verification] Balance decreased. Booking confirmed.")
-             
-             # Save Screenshot
-             from Helpers.utils import take_screenshot
-             await take_screenshot(page, f"booking_success_{target_date}")
              return True
         else:
-             print("    [Verification FAILED] Balance matched pre-bet balance. Bet likely NOT placed.")
+             print("    [Verification FAILED] Balance matched pre-bet balance.")
              return False
 
     except Exception as e:
         await log_error_state(page, "finalize_fatal", e)
         return False
 
+async def place_multi_bet_from_codes(page: Page, verified_predictions: List[Dict], target_date: str) -> bool:
+    """
+    Phase 2b: Execute
+    Builds an accumulator from several verified matches (already has booking_code/url).
+    """
+    if not verified_predictions:
+        print("    [Execute] No verified predictions to book.")
+        return False
+
+    print(f"\n   [Execute] Starting multi-bet construction for {len(verified_predictions)} matches...")
+
+    # 1. Ensure clean start
+    await force_clear_slip(page)
+    
+    success_count = 0
+    managed_urls = set()
+
+    for pred in verified_predictions:
+        url = pred.get('url')
+        fixture_id = str(pred.get('fixture_id'))
+        
+        if not url or url in managed_urls:
+             continue
+        
+        print(f"    [Add] {pred.get('home_team')} vs {pred.get('away_team')}...")
+        
+        try:
+            # Re-use match adding logic but in a batch-friendly way
+            await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await asyncio.sleep(1.5)
+            await neo_popup_dismissal(page, url)
+
+            m_name, o_name = await find_market_and_outcome(pred)
+            if not m_name:
+                continue
+
+            # Selection Logic (Consolidated from book_single_match for DRY)
+            search_icon = SelectorManager.get_selector_strict("fb_match_page", "search_icon")
+            search_input = SelectorManager.get_selector_strict("fb_match_page", "search_input")
+            
+            if search_icon and search_input:
+                try:
+                    if await page.locator(search_icon).first.is_visible(timeout=3000):
+                        await robust_click(page.locator(search_icon).first, page)
+                        await page.locator(search_input).first.fill(m_name)
+                        await page.keyboard.press("Enter")
+                        await asyncio.sleep(1)
+                except: pass
+
+            outcome_selectors = [
+                 f"button:has-text('{o_name}')",
+                 f"div[role='button']:has-text('{o_name}')",
+                 f"span:text-is('{o_name}')",
+                 f".m-outcome:has-text('{o_name}')"
+            ]
+            
+            outcome_added = False
+            initial_count = await get_bet_slip_count(page)
+
+            for sel in outcome_selectors:
+                btn = page.locator(sel).first
+                if await btn.count() > 0 and await btn.is_visible():
+                    if await robust_click(btn, page):
+                        await asyncio.sleep(1)
+                        if await get_bet_slip_count(page) > initial_count:
+                            outcome_added = True
+                            success_count += 1
+                            managed_urls.add(url)
+                            update_prediction_status(fixture_id, target_date, 'added_to_slip')
+                            break
+            
+            if not outcome_added:
+                print(f"    [Fail] Could not add {o_name} for {fixture_id}")
+                update_prediction_status(fixture_id, target_date, 'failed_add')
+
+        except Exception as e:
+            print(f"    [Error] Failed to add {fixture_id}: {e}")
+
+    # 2. Finalize Accumulator if we have selections
+    if success_count > 0:
+        print(f"    [Execute] Finalizing accumulator with {success_count} matches...")
+        return await finalize_accumulator(page, target_date)
+    
+    return False
+
 async def extract_booking_details(page: Page) -> str:
     """Extract and return the booking code if visible."""
-    code_sel = SelectorManager.get_selector_strict("fb_match_page", "booking_code_text")
+    code_sel = SelectorManager.get_selector_strict("fb_match_page", "booking_code_text") or ".m-booking-code"
     booking_code = "UNKNOWN"
-    if code_sel:
-         try:
-             await page.wait_for_selector(code_sel, state="visible", timeout=15000)
-             booking_code = await page.locator(code_sel).first.inner_text()
-             print(f"    [Success] Booking Code: {booking_code}")
-         except:
-             print("    [Warning] Booking code element not found or timed out.")
+    try:
+        await page.wait_for_selector(code_sel, state="visible", timeout=12000)
+        booking_code = (await page.locator(code_sel).first.inner_text()).strip()
+        print(f"    [Success] Booking Code: {booking_code}")
+    except:
+        print("    [Warning] Booking code element not found or timed out.")
     return booking_code

@@ -18,7 +18,14 @@ from Helpers.constants import WAIT_FOR_LOAD_STATE_TIMEOUT
 from .navigator import load_or_create_session, navigate_to_schedule, select_target_date, extract_balance, log_page_title
 from .extractor import extract_league_matches
 from .matcher import match_predictions_with_site, filter_pending_predictions
-from .booker import place_bets_for_matches, finalize_accumulator, clear_bet_slip
+from .booker import (
+    place_bets_for_matches, 
+    finalize_accumulator, 
+    clear_bet_slip, 
+    book_single_match, 
+    force_clear_slip,
+    place_multi_bet_from_codes
+)
 from Helpers.DB_Helpers.db_helpers import (
     PREDICTIONS_CSV, 
     update_prediction_status, 
@@ -186,107 +193,64 @@ async def run_football_com_booking(playwright: Playwright):
             print("\n   [Phase 2a: Harvest] Validating matches and extracting codes...")
             
             cached_site_matches = load_site_matches(target_date)
-            matched_urls = {} # fixture_id -> url
-            verified_predictions = [] # List of preds that have a booking URL/code
-
-            # 2a-1: Identify Unmatched
-            unmatched_predictions = []
+            # site_match_url -> fixture_id mapping
+            url_to_fid = {m.get('url'): m.get('fixture_id') for m in cached_site_matches if m.get('url')}
+            
+            # Identify predictions that have an assigned URL
+            preds_with_url = []
             for pred in day_predictions:
                 fid = str(pred.get('fixture_id'))
-                cached_match = next((m for m in cached_site_matches if m.get('fixture_id') == fid), None)
+                # Find if any cached match has this fixture_id
+                match_obj = next((m for m in cached_site_matches if str(m.get('fixture_id')) == fid), None)
+                if match_obj and match_obj.get('url'):
+                    # Merge data for booker
+                    full_match_data = pred.copy()
+                    full_match_data['url'] = match_obj.get('url')
+                    full_match_data['booking_code'] = match_obj.get('booking_code')
+                    preds_with_url.append(full_match_data)
+
+            # 2a-1: Harvest missing codes
+            verified_matches = []
+            for match_data in preds_with_url:
+                if match_data.get('booking_code'):
+                    print(f"    [Harvest] {match_data['home_team']} already has code: {match_data['booking_code']}")
+                    verified_matches.append(match_data)
+                    continue
                 
-                if cached_match and cached_match.get('url'):
-                    if cached_match.get('booking_status') == 'booked':
-                         # Already fully booked? Reuse logic if needed
-                         pass
-                    
-                    matched_urls[fid] = cached_match.get('url')
-                    # Check if we have booked it (Harvested)
-                    if cached_match.get('booking_code'):
-                         print(f"    [Harvest] {fid} already has code: {cached_match.get('booking_code')}")
-                         verified_predictions.append(pred)
-                    else:
-                         # Has URL but NO code -> Needs Harvest
-                         unmatched_predictions.append(pred) # Re-purpose list for 'Needs Harvest'
-                else:
-                    # No URL -> Scrape -> Match -> Then Needs Harvest
-                    unmatched_predictions.append(pred)
-
-            # 2a-2: Scrape & Match Missing URLs
-            # Filter distinct unconnected predictions
-            preds_needing_url = [p for p in unmatched_predictions if str(p.get('fixture_id')) not in matched_urls]
-            
-            if preds_needing_url:
-                print(f"    [Registry] {len(preds_needing_url)} predictions need URL matching...")
+                # Needs Harvest
                 try:
-                    await navigate_to_schedule(page)
-                    if await select_target_date(page, target_date):
-                        site_matches = await extract_league_matches(page, target_date)
-                        if site_matches:
-                            save_site_matches(site_matches)
-                            cached_site_matches = load_site_matches(target_date)
-                            
-                            new_mappings = await match_predictions_with_site(preds_needing_url, cached_site_matches)
-                            for fid, url in new_mappings.items():
-                                matched_urls[fid] = url
-                                # Update registry connection
-                                match_obj = next((m for m in cached_site_matches if m.get('url') == url), None)
-                                if match_obj:
-                                    update_site_match_status(match_obj['site_match_id'], 'pending', fixture_id=fid)
-                except Exception as e:
-                     print(f"    [Harvest Error] Match extraction failed: {e}")
-
-            # 2a-3: Execute Single Booking (Harvest) for those with URL but no Code
-            preds_to_harvest = [p for p in day_predictions if str(p.get('fixture_id')) in matched_urls]
-            # Exclude already verified
-            preds_to_harvest = [p for p in preds_to_harvest if p not in verified_predictions]
-
-            print(f"    [Harvest] Attempting to harvest codes for {len(preds_to_harvest)} matches...")
-            
-            for pred in preds_to_harvest:
-                fid = str(pred.get('fixture_id'))
-                url = matched_urls.get(fid)
-                
-                # Construct composite match data
-                match_data = {
-                    'home_team': pred.get('home_team'), 
-                    'away_team': pred.get('away_team'),
-                    'url': url,
-                    # Pass prediction details for mapping
-                    'prediction': pred.get('prediction'),
-                    'home_team_id': pred.get('home_team_id'), 
-                    'away_team_id': pred.get('away_team_id')
-                }
-
-                try:
-                    code, b_url = await book_single_match(page, match_data)
-                    
+                    code, _ = await book_single_match(page, match_data)
                     if code:
-                        print(f"    [Harvest] Success! {fid} -> Code: {code}")
+                        print(f"    [Harvest] Success! {match_data['home_team']} -> Code: {code}")
                         # Update Registry
-                        # Find site_match_id
-                        match_obj = next((m for m in cached_site_matches if m.get('url') == url), None)
+                        fid = str(match_data.get('fixture_id'))
+                        match_obj = next((m for m in cached_site_matches if str(m.get('fixture_id')) == fid), None)
                         if match_obj:
                             update_site_match_status(
                                 match_obj['site_match_id'], 
                                 'harvested', 
-                                booking_code=code, 
-                                booking_url=b_url
+                                booking_code=code
                             )
-                        verified_predictions.append(pred)
+                        match_data['booking_code'] = code
+                        verified_matches.append(match_data)
                     else:
-                        print(f"    [Harvest] Failed to get code for {fid}")
+                        print(f"    [Harvest] Failed to get code for {match_data['home_team']}")
                 except Exception as e:
-                    print(f"    [Harvest Error] {fid}: {e}")
+                    print(f"    [Harvest Error] {match_data['home_team']}: {e}")
 
             # --- EXECUTE (Phase 2b) ---
-            print(f"\n   [Phase 2b: Execute] Building Accumulator with {len(verified_predictions)} verified selections...")
+            print(f"\n   [Phase 2b: Execute] Building Accumulator with {len(verified_matches)} verified matches...")
             
-            if verified_predictions:
-                 # Execute Booking using the matched URLs (validated by Harvest)
-                 await place_bets_for_matches(page, matched_urls, verified_predictions, target_date)
+            if verified_matches:
+                 # Execute Booking using the verified selections
+                 from .booker.placement import place_multi_bet_from_codes
+                 success = await place_multi_bet_from_codes(page, verified_matches, target_date)
+                 if success:
+                     print(f"    [Execute] Successfully placed multi-bet for {target_date}")
+                 else:
+                     print(f"    [Execute] Failed to place multi-bet for {target_date}")
             else:
-                 print("    [Execute] No verified matches to book.")
+                 print("    [Execute] No verified matches to book for this date.")
 
     except Exception as e:
         print(f"[FATAL BOOKING ERROR] {e}")

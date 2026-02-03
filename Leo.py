@@ -188,7 +188,7 @@ async def main():
                 print(f"\n      --- LEO: Starting new cycle at {dt.now().strftime('%Y-%m-%d %H:%M:%S')} --- ")
 
                 # 0. Ensure AI Server is Running
-                #start_ai_server()
+                start_ai_server()
 
                 # --- PHASE 0: REVIEW (Observe past actions) ---
                 print("\n   [Phase 0] Checking for past matches to review...")
