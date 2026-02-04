@@ -22,6 +22,7 @@ STANDINGS_CSV = os.path.join(DB_DIR, "standings.csv")
 TEAMS_CSV = os.path.join(DB_DIR, "teams.csv")
 REGION_LEAGUE_CSV = os.path.join(DB_DIR, "region_league.csv")
 FOOTBALL_COM_MATCHES_CSV = os.path.join(DB_DIR, "football_com_matches.csv")
+AUDIT_LOG_CSV = os.path.join(DB_DIR, "audit_log.csv")
 
 
 def init_csvs():
@@ -52,6 +53,9 @@ def init_csvs():
             'site_match_id', 'date', 'home_team', 'away_team', 'league', 'url', 
             'last_extracted', 'fixture_id', 'booking_status', 'booking_details',
             'booking_code', 'booking_url', 'status'
+        ],
+        AUDIT_LOG_CSV: [
+            'timestamp', 'event_type', 'description', 'balance_before', 'balance_after', 'stake', 'status'
         ]
     }
 
@@ -61,6 +65,19 @@ def init_csvs():
             with open(filepath, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
+
+def log_audit_event(event_type: str, description: str, balance_before: Optional[float] = None, balance_after: Optional[float] = None, stake: Optional[float] = None, status: str = 'success'):
+    """Logs a financial or system event to audit_log.csv."""
+    row = {
+        'timestamp': dt.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'event_type': event_type,
+        'description': description,
+        'balance_before': balance_before if balance_before is not None else '',
+        'balance_after': balance_after if balance_after is not None else '',
+        'stake': stake if stake is not None else '',
+        'status': status
+    }
+    _append_to_csv(AUDIT_LOG_CSV, row, ['timestamp', 'event_type', 'description', 'balance_before', 'balance_after', 'stake', 'status'])
 
 def save_prediction(match_data: Dict[str, Any], prediction_result: Dict[str, Any]):
     """UPSERTs a prediction into the predictions.csv file."""
@@ -299,5 +316,8 @@ files_and_headers = {
         'site_match_id', 'date', 'home_team', 'away_team', 'league', 'url', 
         'last_extracted', 'fixture_id', 'booking_status', 'booking_details',
         'booking_code', 'booking_url', 'status'
+    ],
+    AUDIT_LOG_CSV: [
+        'timestamp', 'event_type', 'description', 'balance_before', 'balance_after', 'stake', 'status'
     ]
 }

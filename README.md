@@ -13,12 +13,13 @@ The prime objective of this Agent is to ultimately handle all kinds of sports an
 OVERVIEW:
 Leo is an intelligent football prediction system that combines advanced data analysis, machine learning, and automated betting execution. The system features a hybrid AI architecture using local Qwen3-VL for routine vision tasks and xAI's Grok 4 for high-precision selector discovery and complex UI mapping.
 
-LATEST UPDATES (v3.1.0):
+LATEST UPDATES (v3.2.0):
+- **v2.7 Algorithm Integration**: Full compliance with the production-grade "Harvest -> Execute" strategy.
+- **Kelly Staking**: Fractional Kelly model implemented for risk-aware multi-bet placement.
+- **Audit Logging**: Comprehensive centralized logging of all financial events to `DB/audit_log.csv`.
+- **Withdrawal Safety**: Trigger-based withdrawal flow with Telegram approval simulation and state-aware floors (₦5,000).
+- **Outcome Sync**: Phase 0 reviews now synchronize WON/LOST status across both prediction and site registries.
 - **Grok 4 Integration**: Primary engine for advanced visual UI analysis and HTML-to-Selector mapping.
-- **AI Selector Discovery**: Re-enabled and enhanced autonomous discovery of CSS selectors. Leo can now "see" and "learn" new selectors if websites change.
-- **Automated Recommendation System**: New `Scripts/recommend_bets.py` module that calculates match reliability based on historical accuracy and momentum.
-- **End-to-End Automation**: Flashscore analysis now automatically triggers the recommendation engine, saving today's best bets to `DB/RecommendedBets/`.
-- **Unified AI Interface**: Robust `ai_api_call` system with automatic rotation and retry logic for both local and cloud models.
 
 CORE ARCHITECTURE:
 - Dual-browser system (Flashscore + Football.com) with persistent login sessions.
@@ -44,13 +45,14 @@ MAIN WORKFLOW:
    - Grok 4 maps the visual element to the best CSS selector.
    - `selectors_knowledge_base.json` is updated automatically.
 
-4. BETTING EXECUTION:
-   - Match predictions with Football.com markets.
-   - Automated bet placement with intelligent stake management.
+4. BETTING EXECUTION (Harvest -> Execute):
+   - **Phase 2a (Harvest)**: Extracts individual booking codes for daily pending predictions.
+   - **Phase 2b (Execute)**: Build multi-bets via shareCode injection with Kelly staking.
+   - **Financial Safety**: Verified placement via balance delta checks and audit logging.
 
-5. OUTCOME REVIEW:
-   - Continuous monitoring of completed matches.
-   - Accuracy evaluation and weighting updates.
+5. OUTCOME REVIEW & WITHDRAWAL:
+   - **Phase 0 (Review)**: Cross-sync outcome evaluation (WON/LOST) across all registries.
+   - **Phase 3 (Withdrawal)**: Automated trigger check (₦10k balance, recent net win) + Telegram approval loop.
 
 SUPPORTED BETTING MARKETS:
 1. 1X2 (Home/Away/Draw)

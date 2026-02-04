@@ -90,7 +90,7 @@ async def launch_browser_with_retry(playwright: Playwright, user_data_dir: Path,
 
             if attempt < max_retries - 1:
                 # Cleanup before next attempt
-                await cleanup_chrome_processes()
+                #await cleanup_chrome_processes()
 
                 # Remove lock files
                 lock_file = user_data_dir / "SingletonLock"
@@ -125,11 +125,6 @@ def _ensure_ai_server_if_needed(predictions_missing_urls: bool):
 async def run_football_com_booking(playwright: Playwright):
     """
     Main Phase 2 Orchestrator.
-    Strictly follows:
-    1. Validation (Login/Balance)
-    2. URL Resolution (Cache -> LLM)
-    3. Phase 2a: Harvest (Single -> Code)
-    4. Phase 2b: Execute (Codes -> Multi)
     """
     print("\n--- Running Football.com Booking (Phase 2) ---")
     
@@ -146,117 +141,129 @@ async def run_football_com_booking(playwright: Playwright):
         d_str = pred.get('date')
         if d_str:
             try:
-                 # Only future dates
-                 if dt.strptime(d_str, "%d.%m.%Y").date() >= today:
-                     predictions_by_date.setdefault(d_str, []).append(pred)
+                if dt.strptime(d_str, "%d.%m.%Y").date() >= today:
+                    predictions_by_date.setdefault(d_str, []).append(pred)
             except: continue
             
     if not predictions_by_date:
         print("  [Info] No future predictions found.")
         return
     
-    print(f"  [Info] Dates with predictions: {sorted(predictions_by_date.keys())}")
-
-    # Browser Launch
     user_data_dir = Path("DB/ChromeData_v3").absolute()
     user_data_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"  [System] Launching Persistent Context for Football.com... (Data Dir: {user_data_dir})")
-    await cleanup_chrome_processes()
-    
-    try:
-        context = await launch_browser_with_retry(playwright, user_data_dir)
-    except Exception as e:
-        print(f"  [CRITICAL] Browser launch failed: {e}")
-        return
 
-    try:
-        # 2. Session & Validation
-        _, page = await load_or_create_session(context)
-        PageMonitor.attach_listeners(page)
-        
-        # STRICT SLIP CLEAR (Fatal if fails)
+    max_restarts = 1
+    restarts = 0
+    
+    while restarts <= max_restarts:
+        context = None
+        page = None
         try:
-            await force_clear_slip(page)
+            # Browser Launch
+            print(f"  [System] Launching Session (Restart {restarts}/{max_restarts})...")
+            context = await launch_browser_with_retry(playwright, user_data_dir)
+            
+            # Session & Validation
+            _, page = await load_or_create_session(context)
+            PageMonitor.attach_listeners(page)
+            
+            # 1. Balance Check
+            current_balance = await extract_balance(page)
+            print(f"  [Balance] Current: ₦{current_balance:.2f}")
+
+            # 2. Process Dates
+            for target_date, day_preds in sorted(predictions_by_date.items()):
+                print(f"\n--- Date: {target_date} ({len(day_preds)} matches) ---")
+                
+                # --- STEP 1: URL RESOLUTION ---
+                cached_site_matches = load_site_matches(target_date)
+                matched_urls = {}
+                unmatched_predictions = []
+
+                for pred in day_preds:
+                    fid = str(pred.get('fixture_id'))
+                    cached_match = next((m for m in cached_site_matches if m.get('fixture_id') == fid), None)
+                    if cached_match and cached_match.get('url'):
+                        if cached_match.get('booking_status') != 'booked':
+                             matched_urls[fid] = cached_match.get('url')
+                    else:
+                        unmatched_predictions.append(pred)
+
+                if unmatched_predictions:
+                    print(f"  [Registry] Resolving {len(unmatched_predictions)} unmatched URLs...")
+                    _ensure_ai_server_if_needed(predictions_missing_urls=True) 
+                    await navigate_to_schedule(page)
+                    if await select_target_date(page, target_date):
+                        site_matches = await extract_league_matches(page, target_date)
+                        if site_matches:
+                            save_site_matches(site_matches)
+                            cached_site_matches = load_site_matches(target_date)
+                            new_mappings = await match_predictions_with_site(unmatched_predictions, cached_site_matches)
+                            for fid, url in new_mappings.items():
+                                matched_urls[fid] = url
+                                site_match = next((m for m in cached_site_matches if m.get('url') == url), None)
+                                if site_match:
+                                    update_site_match_status(site_match['site_match_id'], 'pending', fixture_id=fid)
+
+                if not matched_urls:
+                    continue
+
+                # --- STEP 2: HARVEST PHASE ---
+                print(f"  [Phase 2a] Entering Harvest for {len(matched_urls)} matches...")
+                harvested_codes = []
+                
+                for match_id, match_url in matched_urls.items():
+                    pred = next((p for p in day_preds if str(p['fixture_id']) == str(match_id)), None)
+                    if not pred: continue
+
+                    match_dict = {
+                        'url': match_url, 
+                        'site_match_id': get_site_match_id(target_date, pred['home_team'], pred['away_team']),
+                        'home_team': pred['home_team'], 'away_team': pred['away_team']
+                    }
+                    
+                    matches_now = load_site_matches(target_date)
+                    existing_m = next((m for m in matches_now if m['site_match_id'] == match_dict['site_match_id']), None)
+                    if existing_m and existing_m.get('booking_code'):
+                         harvested_codes.append(existing_m['booking_code'])
+                         continue
+
+                    success = await book_single_match(page, match_dict, pred)
+                    if success:
+                        updated_matches = load_site_matches(target_date)
+                        curr_m = next((m for m in updated_matches if m['site_match_id'] == match_dict['site_match_id']), None)
+                        if curr_m and curr_m.get('booking_code'):
+                            harvested_codes.append(curr_m['booking_code'])
+                
+                print(f"  [Harvest] Completed. Collected {len(harvested_codes)} codes.")
+                
+                # --- STEP 3: EXECUTE PHASE ---
+                if harvested_codes:
+                    print(f"  [Phase 2b] Entering Execution for {len(harvested_codes)} selections...")
+                    success = await place_multi_bet_from_codes(page, harvested_codes, current_balance)
+                    if success:
+                        print(f"  [Execute] Multi-bet placed successfully for {target_date}!")
+                else:
+                    print("  [Execute] No codes available to place multi-bet.")
+
+            # If we reached here without raising FatalSessionError, we are done
+            break
+
         except Exception as e:
-            print(f"  [CRITICAL] Session Aborted: {e}")
-            await context.close()
-            return
+            # Check for our specific fatal error
+            is_fatal = "FatalSessionError" in str(type(e)) or "dirty" in str(e).lower()
             
-        current_balance = await extract_balance(page)
-        print(f"  [Balance] Current: NGN {current_balance}")
-        
-        # 3. Process Each Date
-        for target_date, day_preds in sorted(predictions_by_date.items()):
-            print(f"\n--- Processing Date: {target_date} ({len(day_preds)} matches) ---")
-            
-            # --- STEP 3.1: URL RESOLUTION ---
-            # Trigger AI if needed (basic check, matcher handles details)
-            _ensure_ai_server_if_needed(predictions_missing_urls=True) 
-
-            # Using match_predictions_with_site to resolve URLs
-            # This handles both cache hits and scraping/matching for new ones
-            matched_urls = await match_predictions_with_site(page, day_preds, target_date)
-            
-            if not matched_urls:
-                print("  [Info] No URLs matched for this date.")
-                continue
-
-            # --- STEP 3.2: PHASE 2a (HARVEST) ---
-            print(f"\n  [Phase 2a] Harvesting Codes for {len(matched_urls)} matches...")
-            harvested_codes = []
-            
-            # Loop
-            for match_id, match_url in matched_urls.items():
-                # Find prediction object
-                pred = next((p for p in day_preds if str(p['fixture_id']) == str(match_id)), None)
-                if not pred: continue
-
-                # Create Match Dict
-                match_dict = {
-                    'url': match_url, 
-                    'site_match_id': get_site_match_id(target_date, pred['home_team'], pred['away_team']),
-                    'home_team': pred['home_team'],
-                    'away_team': pred['away_team']
-                }
-                
-                # Check if we already have a code in DB (skip re-booking)
-                matches_now = load_site_matches(target_date)
-                existing_m = next((m for m in matches_now if m['site_match_id'] == match_dict['site_match_id']), None)
-                
-                if existing_m and existing_m.get('booking_code'):
-                     print(f"    [Harvest] Code already exists for {pred['home_team']}: {existing_m['booking_code']}")
-                     harvested_codes.append(existing_m['booking_code'])
-                     continue
-
-                # Execute Booking if no code
-                success = await book_single_match(page, match_dict, pred)
-                
-                if success:
-                    # Reload to get the code (Robustness)
-                    matches_now_updated = load_site_matches(target_date)
-                    current_m = next((m for m in matches_now_updated if m['site_match_id'] == match_dict['site_match_id']), None)
-                    if current_m and current_m.get('booking_code'):
-                        harvested_codes.append(current_m['booking_code'])
-                
-                await asyncio.sleep(1) # Pace
-                
-            print(f"  [Harvest] Completed. Codes collected: {len(harvested_codes)}")
-            
-            # --- STEP 3.3: PHASE 2b (EXECUTE) ---
-            if harvested_codes:
-                print(f"\n  [Phase 2b] Executing Multi Bet with {len(harvested_codes)} codes...")
-                try:
-                    await force_clear_slip(page) # Ensure clean slate before building multi
-                    await place_multi_bet_from_codes(page, harvested_codes, current_balance)
-                except Exception as e:
-                    print(f"    [Execute Error] {e}")
+            if is_fatal and restarts < max_restarts:
+                print(f"\n[!!!] FATAL SESSION ERROR: {e}")
+                print(f"[!!!] Resetting session and restarting browser (Attempt {restarts+1}/{max_restarts})...")
+                restarts += 1
+                if context: await context.close()
+                await asyncio.sleep(5)
+                continue # Retry while loop
             else:
-                print("  [Execute] No codes harvested. Skipping placement.")
-
-    except Exception as e:
-        await log_error_state(page, "phase2_fatal", e)
-        print(f"  [CRITICAL] Phase 2 crash: {e}")
+                await log_error_state(page, "phase2_fatal", e)
+                print(f"  [CRITICAL] Phase 2 failed: {e}")
+                break # Exit while loop
         
-    finally:
-        if context: await context.close()
+        finally:
+            if context: await context.close()

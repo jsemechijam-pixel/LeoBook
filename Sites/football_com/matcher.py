@@ -210,20 +210,36 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
             site_full_str = build_match_string(site_region_league, site_home, site_away, site_date, site_time)
             full_similarity = calculate_similarity(pred_full_str, site_full_str)
 
-            # Datetime bonus
+            # 1. League Similarity Check (Penalty if disjoint)
+            league_sim = calculate_similarity(pred_region_league, site_region_league)
+            league_penalty = -0.15 if league_sim < 0.82 else 0.0
+
+            # 2. Direction Check (Home/Away Swap Prevention)
+            # Compare home-home and away-away vs home-away and away-home
+            h_h_sim = calculate_similarity(pred_home, site_home)
+            a_a_sim = calculate_similarity(pred_away, site_away)
+            
+            h_a_sim = calculate_similarity(pred_home, site_away)
+            a_h_sim = calculate_similarity(pred_away, site_home)
+            
+            # If swapped similarity is significantly higher than direct similarity, it's likely a swap
+            is_swapped = (h_a_sim + a_h_sim) > (h_h_sim + a_a_sim + 0.3)
+            swap_penalty = -0.5 if is_swapped else 0.0
+
+            # 3. Datetime Bonus (Tightened)
             site_display_dt = parse_match_datetime(site_date, site_time, is_site_format=True)
             site_utc_dt = (site_display_dt - timedelta(hours=1)) if site_display_dt else None
 
             time_bonus = 0.0
             if pred_utc_dt and site_utc_dt:
                 time_diff_minutes = abs((pred_utc_dt - site_utc_dt).total_seconds()) / 60
-                if time_diff_minutes <= 60:
-                    time_bonus = 0.35 # Increased weights
-                elif time_diff_minutes <= 120:
-                    time_bonus = 0.20
+                if time_diff_minutes <= 30: # Tightened from 60 to 30
+                    time_bonus = 0.35 
+                elif time_diff_minutes <= 90:
+                    time_bonus = 0.15
             
             base_score = full_similarity
-            total_score = base_score + time_bonus
+            total_score = base_score + time_bonus + league_penalty + swap_penalty
             
             candidates.append({
                 'match': site_match,
@@ -244,11 +260,10 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
         # Phase 3: LLM Verification (Only for the single best candidate if borderline)
         final_match_found = False
 
-        if top['total_score'] >= 0.92:
+        if top['total_score'] >= 0.94: # Raised slightly
             final_match_found = True
             print(f"    [Matcher] Strong match found: {pred_home} vs {pred_away} (Score: {top['total_score']:.3f})")
-        elif top['total_score'] >= 0.75:  # Increased threshold to reduce LLM calls
-            # Higher confidence matches don't need LLM verification
+        elif top['total_score'] >= 0.78:  # Raised slightly
             final_match_found = True
             print(f"    [Matcher] High confidence match found: {pred_home} vs {pred_away} (Score: {top['total_score']:.3f})")
         elif top['total_score'] >= 0.65 and llm_matcher:
@@ -264,15 +279,24 @@ async def match_predictions_with_site(day_predictions: List[Dict], site_matches:
                 league=pred_region_league
             )
 
-            if llm_result is True:
+            # Handle upgraded LLM Response (True/False or Dict with confidence)
+            if isinstance(llm_result, dict):
+                is_match_val = llm_result.get('is_match')
+                confidence = llm_result.get('confidence', 0)
+                if is_match_val is True and confidence >= 85:
+                    print(f"      -> AI confirmed match! (Confidence: {confidence}%)")
+                    final_match_found = True
+                else:
+                    print(f"      -> AI rejected match (Confidence: {confidence}%).")
+            elif llm_result is True:
                 print("      -> AI confirmed match!")
                 final_match_found = True
             elif llm_result is False:
                 print("      -> AI rejected match.")
             else:
-                # LLM failed/timeout - use high confidence score as fallback
-                if top['total_score'] >= 0.75:
-                    print("      -> AI timeout, but high score - accepting match!")
+                # LLM failed/timeout - Tiered fallback
+                if top['total_score'] >= 0.82: # Higher threshold for timeout acceptance
+                    print("      -> AI timeout, but very high score - accepting match!")
                     final_match_found = True
                 else:
                     print("      -> AI timeout, score too low - rejecting match.")

@@ -211,7 +211,11 @@
         "market_expanded": ".m-market .m-table.market-content:not([style*=\"display: none\"])",
         "market_collapsed": ".m-market .m-table.market-content[style*=\"display: none\"]",
         "market_outcome_clickable": ".m-table-row > div.un-rounded-rem-[10px]",
-        "market_outcome_active": ".m-table-row > div.un-bg-encore-brand-secondary"
+        "market_outcome_active": ".m-table-row > div.un-bg-encore-brand-secondary",
+        "market_group_header": ".m-market-title",
+        "book_bet_button": ".m-book-btn",
+        "booking_code_modal": ".drawer.bottom-panel-drawer, #booking-code-detail-panel-container",
+        "modal_close_button": ".middle.close .arrow-icon, .close-icon"
     },
     "fb_schedule_page": {
         "filter_dropdown_today": ".m-choose-time",

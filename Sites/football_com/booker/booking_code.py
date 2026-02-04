@@ -39,26 +39,27 @@ async def book_single_match(page: Page, match: Dict, prediction: Dict) -> bool:
     try:
         if page.url != url:
             await page.goto(url, timeout=60000, wait_until='domcontentloaded')
-        # Wait for meaningful content
-        await page.wait_for_selector(SelectorManager.get_selector_strict("fb_match_page", "market_group_header"), timeout=15000)
+        # Wait for meaningful content (ready indicator)
+        await page.wait_for_selector(SelectorManager.get_selector_strict("fb_match_page", "market_group_header"), timeout=20000)
+        await asyncio.sleep(1) # Extra stability
     except Exception as e:
-        print(f"    [Harvest Error] Navigation failed: {e}")
+        print(f"    [Harvest Error] Navigation failed for {url}: {e}")
         return False
 
     # 3. Select Outcome
-    # This requires logic to map prediction -> market -> outcome
-    # For now, we assume '1X2' or 'Double Chance' based on simple prediction mapping
-    # TODO: Refine this mapping logic to be more generic
-    pred_type = prediction.get('prediction', 'SKIP')
-    
-    outcome_found = await _select_outcome(page, pred_type)
+    outcome_found = await _select_outcome(page, prediction)
     if not outcome_found:
-        print(f"    [Harvest] Pred '{pred_type}' outcome not found or odds too low.")
-        update_site_match_status(site_match_id, status="failed", details=f"Outcome {pred_type} not found/low odds")
+        print(f"    [Harvest] Pred '{prediction.get('prediction')}' outcome not found or odds too low.")
+        update_site_match_status(site_match_id, status="failed", details=f"Outcome {prediction.get('prediction')} not found/low odds")
         return False
 
+    # --- BOT EVASION: Human-like delay ---
+    delay = 0.8 + (0.7 * (hash(prediction.get('fixture_id', '')) % 100) / 100.0)
+    print(f"    [Evasion] Waiting {delay:.2f}s before booking...")
+    await asyncio.sleep(delay)
+
     # 4. Book Bet
-    success = await _perform_booking_action(page, site_match_id)
+    success = await _perform_booking_action(page, site_match_id, prediction)
     
     # 5. Cleanup
     await force_clear_slip(page) # Reset for next match
@@ -145,23 +146,56 @@ async def _select_outcome(page: Page, prediction: Dict) -> bool:
         return False
 
 
-async def _perform_booking_action(page: Page, site_match_id: str) -> bool:
+async def _perform_booking_action(page: Page, site_match_id: str, prediction: Dict) -> bool:
     """Clicks Book Bet, waits for modal, extracts code."""
     book_btn_sel = SelectorManager.get_selector_strict("fb_match_page", "book_bet_button")
     
     try:
         # Click Book Bet
-        if await page.locator(book_btn_sel).count() > 0:
-            await robust_click(page.locator(book_btn_sel).first, page)
+        btn = page.locator(book_btn_sel).first
+        if await btn.count() > 0:
+            print("    [Booking] Clicking 'Book Bet'...")
+            # Use JS click if needed, but robust_click is good
+            await robust_click(btn, page)
             
             # Wait for Modal
             modal_sel = SelectorManager.get_selector_strict("fb_match_page", "booking_code_modal")
-            await page.wait_for_selector(modal_sel, timeout=10000)
+            try:
+                await page.wait_for_selector(modal_sel, state="visible", timeout=15000)
+            except:
+                print("    [Harvest Error] Booking code modal did not appear or wasn't visible.")
+                return False
             
+            # --- POST-PLACEMENT VERIFICATION ---
+            # Re-verify team names in the modal before committing
+            modal_text = (await page.locator(modal_sel).inner_text()).lower()
+            pred_home = prediction.get('home_team', '').lower()
+            pred_away = prediction.get('away_team', '').lower()
+            
+            # Check if at least part of the team names are in the modal text
+            if pred_home[:4] not in modal_text and pred_away[:4] not in modal_text:
+                print(f"    [Verification Failure] Modal content does not match teams: '{pred_home}' vs '{pred_away}'")
+                return False
+            else:
+                print("    [Verification] Teams confirmed in booking modal.")
+
             # Extract Code
             code_sel = SelectorManager.get_selector_strict("fb_match_page", "booking_code_text")
-            code_text = await page.locator(code_sel).first.inner_text()
+            # Poll for code to appear (sometimes it takes a beat)
+            code_text = ""
+            for _ in range(10):
+                try:
+                    code_text = (await page.locator(code_sel).first.inner_text(timeout=2000)).strip()
+                    if code_text and len(code_text) >= 5: # Typical codes are like "XYZ123"
+                        break
+                except:
+                    pass
+                await asyncio.sleep(1)
             
+            if not code_text:
+                print("    [Harvest Error] Could not extract booking code text from modal or it was empty.")
+                return False
+                
             print(f"    [Harvest Success] Code Found: {code_text}")
             
             # Save
@@ -174,8 +208,10 @@ async def _perform_booking_action(page: Page, site_match_id: str) -> bool:
             
             # Dismiss Modal
             close_sel = SelectorManager.get_selector_strict("fb_match_page", "modal_close_button")
-            if await page.locator(close_sel).count() > 0:
-                await page.locator(close_sel).first.click()
+            close_btn = page.locator(close_sel).first
+            if await close_btn.count() > 0:
+                await close_btn.click()
+                await asyncio.sleep(0.5)
             
             return True
             

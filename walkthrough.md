@@ -37,12 +37,15 @@ The new `force_clear_slip` function ensures the browser is in a clean state befo
 The AI server is no longer started globally on startup. It is now lazy-loaded only when URL resolution (Matcher) fails to find a match in the cache or via standard scraping.
 - **Logic**: `_ensure_ai_server_if_needed()` in `football_com.py` checks server status and starts it only if matching is actually required.
 
-## 5. Critical Fixes
+## 5. Critical Fixes & Stability
 
 After the refactor, we resolved several issues:
-- **Dependency**: Added `google-generativeai` to `requirements.txt` to fix the `ModuleNotFoundError` for the `google` namespace.
-- **Import Errors**: Fixed numerous `ImportError` exceptions caused by renaming `clear_bet_slip` to `force_clear_slip` and shuffling files between `booker/` submodules.
-- **Git**: Configured `.gitignore` to correctly exclude large `Mind/*.gguf` models while keeping the code repository clean.
+- **Phase 2 Crash Fix**: Corrected `match_predictions_with_site` call to pass only 2 arguments (day_predictions, site_matches) after ensuring scraping has occurred.
+- **URL Resolution Logic**: Restored the correct "Scrape -> Cache -> Match" sequence in `football_com.py`.
+- **Navigator Fix**: Resolved the stale `clear_bet_slip` import in `navigator.py` by updating it to use the new `force_clear_slip` function.
+- **Dependency**: Added `google-generativeai` to `requirements.txt` to fix the `ModuleNotFoundError`.
+- **Import Errors**: Fixed all stale imports across `placement.py`, `football_com.py`, and package `__init__.py` files.
+- **Git**: Configured `.gitignore` to correctly exclude large `Mind/*.gguf` models.
 
 ## 6. Verification Results
 

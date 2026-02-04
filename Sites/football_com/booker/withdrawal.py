@@ -8,6 +8,7 @@ from Neo.selector_manager import SelectorManager
 from .ui import robust_click
 # Adjusted import: navigator is in the parent directory (Sites/football_com)
 from ..navigator import extract_balance
+from Helpers.DB_Helpers.db_helpers import log_audit_event
 
 WITHDRAWALS_CSV = Path("DB/withdrawals.csv")
 
@@ -15,13 +16,28 @@ WITHDRAWALS_CSV = Path("DB/withdrawals.csv")
 async def check_and_perform_withdrawal(page: Page, current_balance: float, last_win_amount: float = 0):
     """
     Evaluates withdrawal rules and executes if valid.
-    Rules:
-    1. Min withdrawal: N500
-    2. Max withdrawal: Min(30% of Total Balance, 50% of Latest Win)
-       (If last_win_amount is 0/unknown, use 30% balance rule only)
+    New Rule: 48h Cooldown since last entry in DB/withdrawals.csv.
+    v2.7: Never withdraw below N5,000 floor.
     """
     MIN_WITHDRAWAL = 500
+    MIN_REMAINING_BALANCE = 5000
     
+    # --- COOLDOWN CHECK ---
+    if WITHDRAWALS_CSV.exists():
+        try:
+            with open(WITHDRAWALS_CSV, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if len(lines) > 1: # Header + at least one record
+                    last_record = lines[-1].split(',')
+                    last_ts_str = last_record[0].strip() # Assuming timestamp is first col
+                    last_ts = datetime.strptime(last_ts_str, "%Y-%m-%d %H:%M:%S")
+                    hours_passed = (datetime.now() - last_ts).total_seconds() / 3600
+                    if hours_passed < 48:
+                        print(f"    [Withdrawal] Cooldown active. Last withdrawal was {hours_passed:.1f}h ago (Wait 48h).")
+                        return False
+        except Exception as e:
+            print(f"    [Withdrawal] Cooldown check failed (continuing): {e}")
+
     # 1. Calculate Candidate Amounts
     cand_balance_rule = current_balance * 0.30
     cand_win_rule = last_win_amount * 0.50 if last_win_amount > 0 else cand_balance_rule
@@ -31,15 +47,24 @@ async def check_and_perform_withdrawal(page: Page, current_balance: float, last_
     
     # Final Amount Check
     if max_allowable < MIN_WITHDRAWAL:
-        print(f"    [Withdrawal] Skipped. Max allowable (N{max_allowable:.2f}) < Min Limit (N{MIN_WITHDRAWAL})")
+        print(f"    [Withdrawal] Skipped. Max allowable (₦{max_allowable:.2f}) < Min Limit (₦{MIN_WITHDRAWAL})")
         return False
         
-    final_amount = int(max_allowable) # Withdrawals usually integer
-    print(f"    [Withdrawal] Initiating withdrawal of N{final_amount} (Rules: 30% Bal or 50% Win)")
+    final_amount = int(max_allowable) 
     
-    return await _execute_withdrawal_flow(page, str(final_amount))
+    # Floor check: Never withdraw below N5000
+    if (current_balance - final_amount) < MIN_REMAINING_BALANCE:
+         final_amount = int(current_balance - MIN_REMAINING_BALANCE)
+         if final_amount < MIN_WITHDRAWAL:
+             print(f"    [Withdrawal] Skipped. Withdrawal would put balance below ₦{MIN_REMAINING_BALANCE} floor.")
+             return False
+             
+    print(f"    [Withdrawal] Initiating withdrawal of ₦{final_amount} (Rules: 30% Bal or 50% Win, ₦{MIN_REMAINING_BALANCE} floor)")
+    
+    success = await _execute_withdrawal_flow(page, str(final_amount), reason="Rule-based withdrawal")
+    return success
 
-async def _execute_withdrawal_flow(page: Page, amount: str = "100", pin: str = "1234"):
+async def _execute_withdrawal_flow(page: Page, amount: str = "100", pin: str = "1234", reason: str = "Manual"):
     """
     Internal flow: Enter amount -> Confirm -> PIN -> Verify
     """
@@ -133,6 +158,15 @@ async def _execute_withdrawal_flow(page: Page, amount: str = "100", pin: str = "
         )
 
     print(f"[Withdraw] Balance verification OK: {pre_balance} -> {post_balance}")
+
+    log_audit_event(
+        event_type="WITHDRAWAL",
+        description=f"Withdrawal of ₦{amount_confirmed} to {bank_confirmed} ({account_confirmed}). Reason: {reason}",
+        balance_before=pre_balance,
+        balance_after=post_balance,
+        stake=float(amount_confirmed.replace(",", "")),
+        status="success"
+    )
 
     # --- Save successful withdrawal to CSV ---
     record = {

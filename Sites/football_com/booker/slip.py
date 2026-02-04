@@ -115,8 +115,14 @@ async def force_clear_slip(page: Page, retry_count: int = 3):
              if os.path.exists("storage_state.json"):
                  os.remove("storage_state.json")
                  print("    [System] storage_state.json deleted.")
+             
+             # Also try to close context if possible
+             if page and not page.is_closed():
+                 context = page.context
+                 if context:
+                     await context.close()
         except Exception as e:
-            print(f"    [System] Failed to delete storage: {e}")
+            print(f"    [System] Failed to close context/delete storage: {e}")
 
         raise FatalSessionError("Slip stuck dirty after 3 retries. Session invalidated.")
     else:

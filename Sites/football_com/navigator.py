@@ -217,7 +217,8 @@ async def load_or_create_session(context: BrowserContext) -> Tuple[BrowserContex
     current_url = page.url
     if "football.com" not in current_url or current_url == "about:blank":
          # print("  [Auth] Initial navigation...")
-         await page.goto("https://www.football.com/ng", wait_until='domcontentloaded', timeout=NAVIGATION_TIMEOUT)
+         await page.goto("https://www.football.com/ng", wait_until='networkidle', timeout=NAVIGATION_TIMEOUT)
+         
     
     # Step 0: Pre-Booking State Validation
     print("  [Auth] Step 0: Validating session state...")
@@ -252,8 +253,8 @@ async def load_or_create_session(context: BrowserContext) -> Tuple[BrowserContex
 
     # C. Aggressive Betslip Clear
     try:
-        from .booker.slip import clear_bet_slip
-        await clear_bet_slip(page)
+        from .booker.slip import force_clear_slip
+        await force_clear_slip(page)
     except ImportError:
         print("  [Auth] Warning: Could not import clear_bet_slip for Step 0 check.")
     except Exception as e:
