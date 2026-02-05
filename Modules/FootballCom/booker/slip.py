@@ -10,7 +10,7 @@ Handles counting and clearing of the betslip with robust, self-healing logic.
 import re
 import asyncio
 from playwright.async_api import Page
-from .ui import robust_click
+
 from Core.Intelligence.selector_manager import SelectorManager
 
 async def get_bet_slip_count(page: Page) -> int:
@@ -67,7 +67,7 @@ async def force_clear_slip(page: Page, retry_count: int = 3):
                 sel = SelectorManager.get_selector_strict("fb_match_page", key) or SelectorManager.get_selector_strict("fb_global", key)
                 # Check visibility aggressively
                 if sel and await page.locator(sel).count() > 0 and await page.locator(sel).first.is_visible():
-                        await robust_click(page.locator(sel).first, page)
+                        await page.locator(sel).first.click()
                         slip_opened = True
                         await asyncio.sleep(1.5)
                         break

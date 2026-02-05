@@ -15,7 +15,7 @@ from Data.Access.db_helpers import update_prediction_status
 from Core.Utils.utils import log_error_state, capture_debug_snapshot
 from Core.Intelligence.selector_manager import SelectorManager
 from Core.Intelligence.intelligence import fb_universal_popup_dismissal as neo_popup_dismissal
-from .ui import robust_click, wait_for_condition
+from .ui import wait_for_condition
 from .mapping import find_market_and_outcome
 from .slip import get_bet_slip_count, force_clear_slip
 from Data.Access.db_helpers import log_audit_event
@@ -46,7 +46,7 @@ async def expand_collapsed_market(page: Page, market_name: str):
                  # Heuristic: Validating visibility of outcomes is better done by the caller.
                  # This function explicitly toggles.
                  print(f"    [Market] Clicking market header for '{market_name}' to ensure expansion...")
-                 await robust_click(target_header, page)
+                 await target_header.click()
                  await asyncio.sleep(1)
     except Exception as e:
         print(f"    [Market] Expansion failed: {e}")
@@ -96,7 +96,7 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
             
             if search_icon and search_input:
                 if await page.locator(search_icon).count() > 0:
-                    await robust_click(page.locator(search_icon).first, page)
+                    await page.locator(search_icon).first.click()
                     await asyncio.sleep(1)
                     
                     await page.locator(search_input).fill(m_name)
@@ -116,7 +116,7 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
                     outcome_btn = page.locator(f"button:text-is('{o_name}'), div[role='button']:text-is('{o_name}')").first
                     if await outcome_btn.count() > 0 and await outcome_btn.is_visible():
                          print(f"    [Selection] Found outcome button '{o_name}'")
-                         await robust_click(outcome_btn, page)
+                         await outcome_btn.click()
                     else:
                          # Strategy B: Row based fallback
                          row_sel = SelectorManager.get_selector_strict("fb_match_page", "match_market_table_row")
@@ -125,7 +125,7 @@ async def place_bets_for_matches(page: Page, matched_urls: Dict[str, str], day_p
                              target_row = page.locator(row_sel).filter(has_text=o_name).first
                              if await target_row.count() > 0:
                                   print(f"    [Selection] Found outcome row for '{o_name}'")
-                                  await robust_click(target_row, page)
+                                  await target_row.click()
                     
                     # 5. Verification Loop
                     for _ in range(3):
@@ -238,7 +238,7 @@ async def place_multi_bet_from_codes(page: Page, harvested_matches: List[Dict], 
         slip_trigger = SelectorManager.get_selector_strict("fb_match_page", "slip_trigger_button")
         btn = page.locator(slip_trigger).first
         if await btn.count() > 0:
-            await robust_click(btn, page)
+            await btn.click()
             # Wait for slip container
             slip_sel = SelectorManager.get_selector_strict("fb_match_page", "slip_drawer_container")
             await page.wait_for_selector(slip_sel, state="visible", timeout=15000)
@@ -254,7 +254,7 @@ async def place_multi_bet_from_codes(page: Page, harvested_matches: List[Dict], 
         place_btn = SelectorManager.get_selector_strict("fb_match_page", "betslip_place_bet_button")
         btn = page.locator(place_btn).first
         if await btn.count() > 0 and await btn.is_enabled():
-            await robust_click(btn, page)
+            await btn.click()
             
             # --- CONFIRMATION ---
             await asyncio.sleep(2)
