@@ -1,0 +1,242 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:ui';
+import '../../core/constants/app_colors.dart';
+import '../../data/models/recommendation_model.dart';
+import '../../data/models/match_model.dart';
+import '../../logic/cubit/home_cubit.dart';
+import '../widgets/recommendation_card.dart';
+import '../screens/match_details_screen.dart';
+// We'll reuse the DateItem logic if possible, or just re-implement cleanly
+
+class TopPredictionsScreen extends StatelessWidget {
+  const TopPredictionsScreen({super.key});
+
+  void _navigateToMatch(
+    BuildContext context,
+    RecommendationModel rec,
+    List<MatchModel> allMatches,
+  ) {
+    MatchModel? match;
+    try {
+      match = allMatches.firstWhere(
+        (m) => m.fixtureId == rec.fixtureId && rec.fixtureId.isNotEmpty,
+      );
+    } catch (_) {
+      try {
+        match = allMatches.firstWhere(
+          (m) =>
+              rec.match.toLowerCase().contains(m.homeTeam.toLowerCase()) &&
+              rec.match.toLowerCase().contains(m.awayTeam.toLowerCase()),
+        );
+      } catch (_) {}
+    }
+
+    if (match != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => MatchDetailsScreen(match: match!)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Match details not found in schedule.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundDark,
+      body: BlocBuilder<HomeCubit, HomeState>(
+        builder: (context, state) {
+          if (state is! HomeLoaded) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return CustomScrollView(
+            slivers: [
+              // Sticky Header with Blur
+              SliverAppBar(
+                pinned: true,
+                floating: true,
+                backgroundColor: AppColors.backgroundDark.withValues(
+                  alpha: 0.8,
+                ),
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                flexibleSpace: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(color: Colors.transparent),
+                  ),
+                ),
+                title: const Text(
+                  "Top Predictions",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.tune, color: Colors.white70),
+                    onPressed: () {},
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(80),
+                  child: Container(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.05),
+                        ),
+                      ),
+                    ),
+                    child: SizedBox(
+                      height: 70,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: 7,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemBuilder: (context, index) {
+                          final now = DateTime.now();
+                          final dayOffset = index - 3;
+                          final date = DateTime(
+                            now.year,
+                            now.month,
+                            now.day,
+                          ).add(Duration(days: dayOffset));
+
+                          final isSelected =
+                              date.year == state.selectedDate.year &&
+                              date.month == state.selectedDate.month &&
+                              date.day == state.selectedDate.day;
+
+                          return _buildDateItem(context, date, isSelected);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Recommendations List
+              state.filteredRecommendations.isEmpty
+                  ? const SliverFillRemaining(
+                      child: Center(
+                        child: Text(
+                          "No top predictions available.",
+                          style: TextStyle(color: Colors.white54),
+                        ),
+                      ),
+                    )
+                  : SliverPadding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final rec = state.filteredRecommendations[index];
+                          return GestureDetector(
+                            onTap: () => _navigateToMatch(
+                              context,
+                              rec,
+                              state.allMatches,
+                            ),
+                            child: RecommendationCard(recommendation: rec),
+                          );
+                        }, childCount: state.filteredRecommendations.length),
+                      ),
+                    ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDateItem(BuildContext context, DateTime date, bool isSelected) {
+    final now = DateTime.now();
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
+    final dayName = isToday
+        ? "TODAY"
+        : javaDateFormat('EEE', date).toUpperCase();
+    final dayNum = javaDateFormat('d MMM', date).toUpperCase();
+
+    return GestureDetector(
+      onTap: () => context.read<HomeCubit>().updateDate(date),
+      child: Container(
+        width: 75,
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected
+              ? Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                  width: 1,
+                )
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              dayName,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: isSelected ? AppColors.primary : Colors.white38,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              dayNum,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.primary : Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Simple date formatter helper since intl's DateFormat might need initialization or be verbose here
+  String javaDateFormat(String pattern, DateTime date) {
+    final months = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ];
+    final days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+    if (pattern == 'EEE') return days[date.weekday - 1];
+    if (pattern == 'd MMM') return "${date.day} ${months[date.month - 1]}";
+    return "";
+  }
+}
