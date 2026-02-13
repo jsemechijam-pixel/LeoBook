@@ -122,6 +122,42 @@ def update_prediction_status(match_id: str, date: str, new_status: str, **kwargs
     except Exception as e:
         print(f"    [Warning] Failed to update status for {match_id}: {e}")
 
+def backfill_prediction_entry(fixture_id: str, updates: Dict[str, str]):
+    """
+    Partially updates an existing prediction row without overwriting analysis data.
+    Only updates fields that are currently empty, 'Unknown', or 'N/A'.
+    """
+    if not fixture_id or not updates:
+        return False
+
+    if not os.path.exists(PREDICTIONS_CSV):
+        return False
+
+    rows = []
+    updated = False
+    try:
+        with open(PREDICTIONS_CSV, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                if row.get('fixture_id') == fixture_id:
+                    for key, value in updates.items():
+                        if key in row and value:
+                            current = row[key].strip() if row[key] else ''
+                            if not current or current in ('Unknown', 'N/A', 'unknown'):
+                                row[key] = value
+                                updated = True
+                    rows.append(row)
+                else:
+                    rows.append(row)
+
+        if updated and fieldnames is not None:
+            _write_csv(PREDICTIONS_CSV, rows, list(fieldnames))
+    except Exception as e:
+        print(f"    [Warning] Failed to backfill prediction {fixture_id}: {e}")
+
+    return updated
+
 def save_schedule_entry(match_info: Dict[str, Any]):
     """Saves or updates a single match entry in schedules.csv."""
     fixture_id = match_info.get('fixture_id')
