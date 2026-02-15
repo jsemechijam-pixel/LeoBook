@@ -246,7 +246,7 @@ class SyncManager:
                 if whitelist and k not in whitelist and k != 'over_2.5':
                     continue
 
-                if v in ('', 'N/A', None):
+                if v in ('', 'N/A', None, 'None', 'none', 'nan', 'NaN', 'null', 'NULL'):
                     clean[k] = None
                 else:
                     val = v
