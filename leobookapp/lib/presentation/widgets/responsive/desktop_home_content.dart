@@ -42,6 +42,7 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabChange);
     _scrollController = ScrollController();
+    _scrollController.addListener(() => setState(() {}));
     _computeCounts();
   }
 
@@ -95,8 +96,6 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  const CategoryBar(),
-                  const SizedBox(height: 8),
                   const TopPredictionsGrid(),
                   const SizedBox(height: 48),
                   const AccuracyReportCard(),
@@ -108,7 +107,19 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
             ),
             SliverPersistentHeader(
               pinned: true,
-              delegate: _StickyTabBarDelegate(
+              delegate: _StickyHeaderDelegate(
+                height: 92,
+                child: Container(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: const CategoryBar(),
+                ),
+              ),
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyHeaderDelegate(
+                height: 50,
                 child: Container(
                   color: Theme.of(context).scaffoldBackgroundColor,
                   padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -136,23 +147,7 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
                         type = MatchTabType.all;
                     }
 
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildMatchGroupedList(type)),
-                        const SizedBox(width: 32),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 24),
-                          child: SizedBox(
-                            width: 32,
-                            height:
-                                600, // Fixed height to avoid infinite constraint
-                            child: _buildSideRuler(type) ??
-                                const SizedBox.shrink(),
-                          ),
-                        ),
-                      ],
-                    );
+                    return _buildMatchGroupedList(type);
                   },
                 ),
               ),
@@ -162,6 +157,39 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
               child: FootnoteSection(),
             ),
           ],
+        ),
+        // Sticky Side Ruler
+        Positioned(
+          top: 150, // Positioned below the typical header area
+          right: 20,
+          bottom: 100, // Leave space for footer
+          width: 36,
+          child: Builder(
+            builder: (context) {
+              final index = _tabController.index;
+              MatchTabType type;
+              switch (index) {
+                case 1:
+                  type = MatchTabType.finished;
+                  break;
+                case 2:
+                  type = MatchTabType.scheduled;
+                  break;
+                default:
+                  type = MatchTabType.all;
+              }
+
+              // Only show if we've scrolled past the top sections
+              final showRuler = _scrollController.hasClients &&
+                  _scrollController.offset > 400;
+
+              if (!showRuler) return const SizedBox.shrink();
+
+              return Center(
+                child: _buildSideRuler(type) ?? const SizedBox.shrink(),
+              );
+            },
+          ),
         ),
       ],
     );
@@ -212,6 +240,7 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
 
     void flushGroup() {
       if (currentGroupMatches.isNotEmpty) {
+        final groupSnapshot = List<MatchModel>.from(currentGroupMatches);
         children.add(
           GridView.builder(
             shrinkWrap: true,
@@ -222,9 +251,8 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
               mainAxisSpacing: 20,
               mainAxisExtent: 350,
             ),
-            itemCount: currentGroupMatches.length,
-            itemBuilder: (context, idx) =>
-                MatchCard(match: currentGroupMatches[idx]),
+            itemCount: groupSnapshot.length,
+            itemBuilder: (context, idx) => MatchCard(match: groupSnapshot[idx]),
           ),
         );
         children.add(const SizedBox(height: 32));
@@ -323,16 +351,17 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
   }
 }
 
-class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
+  final double height;
 
-  _StickyTabBarDelegate({required this.child});
-
-  @override
-  double get minExtent => 50.0;
+  _StickyHeaderDelegate({required this.child, required this.height});
 
   @override
-  double get maxExtent => 50.0;
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
 
   @override
   Widget build(
@@ -344,5 +373,6 @@ class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  bool shouldRebuild(_StickyTabBarDelegate oldDelegate) => false;
+  bool shouldRebuild(_StickyHeaderDelegate oldDelegate) =>
+      oldDelegate.height != height || oldDelegate.child != child;
 }
