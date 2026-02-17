@@ -127,11 +127,11 @@ class TopPredictionsScreen extends StatelessWidget {
                           ? SliverGrid(
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 24,
-                                    mainAxisSpacing: 24,
-                                    childAspectRatio: 1.4,
-                                  ),
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 24,
+                                mainAxisSpacing: 24,
+                                childAspectRatio: 1.4,
+                              ),
                               delegate: SliverChildBuilderDelegate(
                                 (context, index) {
                                   final rec =
@@ -203,8 +203,7 @@ class TopPredictionsScreen extends StatelessWidget {
               now.day,
             ).add(Duration(days: dayOffset));
 
-            final isSelected =
-                date.year == state.selectedDate.year &&
+            final isSelected = date.year == state.selectedDate.year &&
                 date.month == state.selectedDate.month &&
                 date.day == state.selectedDate.day;
 
@@ -219,9 +218,8 @@ class TopPredictionsScreen extends StatelessWidget {
     final now = DateTime.now();
     final isToday =
         date.year == now.year && date.month == now.month && date.day == now.day;
-    final dayName = isToday
-        ? "TODAY"
-        : javaDateFormat('EEE', date).toUpperCase();
+    final dayName =
+        isToday ? "TODAY" : javaDateFormat('EEE', date).toUpperCase();
     final dayNum = javaDateFormat('d MMM', date).toUpperCase();
 
     return GestureDetector(
