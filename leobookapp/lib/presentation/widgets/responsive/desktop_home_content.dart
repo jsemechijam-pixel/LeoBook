@@ -137,14 +137,19 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
                     }
 
                     return Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: _buildMatchGroupedList(type)),
                         const SizedBox(width: 32),
-                        SizedBox(
-                          width: 32,
-                          child:
-                              _buildSideRuler(type) ?? const SizedBox.shrink(),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 24),
+                          child: SizedBox(
+                            width: 32,
+                            height:
+                                600, // Fixed height to avoid infinite constraint
+                            child: _buildSideRuler(type) ??
+                                const SizedBox.shrink(),
+                          ),
                         ),
                       ],
                     );
