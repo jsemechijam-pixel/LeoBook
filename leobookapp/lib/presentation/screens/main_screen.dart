@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:leobookapp/core/constants/app_colors.dart';
+import 'package:leobookapp/core/constants/responsive_constants.dart';
 import 'package:leobookapp/presentation/screens/home_screen.dart';
 import 'package:leobookapp/presentation/screens/account_screen.dart';
 import 'package:leobookapp/presentation/screens/rule_engine/backtest_dashboard.dart';
@@ -125,12 +126,13 @@ class _MainScreenState extends State<MainScreen> {
               );
             }
 
+            final screenWidth = constraints.maxWidth;
             return Scaffold(
               extendBody: false,
               body: scaffoldBody,
               bottomNavigationBar: Container(
                 color: Colors.transparent,
-                margin: const EdgeInsets.fromLTRB(58, 0, 58, 40),
+                margin: Responsive.bottomNavMargin(screenWidth),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(40),
                   child: BackdropFilter(

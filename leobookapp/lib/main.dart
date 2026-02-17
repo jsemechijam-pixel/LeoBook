@@ -50,6 +50,27 @@ class LeoBookApp extends StatelessWidget {
           theme: AppTheme.darkTheme,
           home: const MainScreen(),
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            const double scale = 0.75;
+            final mq = MediaQuery.of(context);
+            return Transform.scale(
+              scale: scale,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: mq.size.width / scale,
+                height: mq.size.height / scale,
+                child: MediaQuery(
+                  data: mq.copyWith(
+                    size: Size(
+                      mq.size.width / scale,
+                      mq.size.height / scale,
+                    ),
+                  ),
+                  child: child!,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

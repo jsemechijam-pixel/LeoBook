@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:leobookapp/core/constants/app_colors.dart';
+import 'package:leobookapp/core/constants/responsive_constants.dart';
 import 'package:leobookapp/data/models/news_model.dart';
 
 class NewsFeed extends StatelessWidget {
@@ -13,45 +14,55 @@ class NewsFeed extends StatelessWidget {
     if (news.isEmpty) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              Icon(Icons.newspaper, color: AppColors.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                "LATEST UPDATES",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.7)
-                      : AppColors.textDark,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardW = Responsive.cardWidth(constraints.maxWidth,
+            minWidth: 240, maxWidth: 320);
+        final listH = cardW * 0.9; // Proportional to card width
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              child: Row(
+                children: [
+                  Icon(Icons.newspaper, color: AppColors.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    "LATEST UPDATES",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.0,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : AppColors.textDark,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 250,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: news.length,
-            itemBuilder: (context, index) {
-              return _buildNewsCard(context, news[index], isDark);
-            },
-          ),
-        ),
-      ],
+            ),
+            SizedBox(
+              height: listH,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: news.length,
+                itemBuilder: (context, index) {
+                  return _buildNewsCard(context, news[index], isDark, cardW);
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildNewsCard(BuildContext context, NewsModel item, bool isDark) {
+  Widget _buildNewsCard(
+      BuildContext context, NewsModel item, bool isDark, double cardWidth) {
     return GestureDetector(
       onTap: () async {
         final uri = Uri.parse(item.url);
@@ -60,7 +71,7 @@ class NewsFeed extends StatelessWidget {
         }
       },
       child: Container(
-        width: 280,
+        width: cardWidth,
         margin: const EdgeInsets.only(right: 14),
         decoration: BoxDecoration(
           color: isDark
@@ -77,7 +88,7 @@ class NewsFeed extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image Container
+            // Image Container — ratio-based, never clips
             AspectRatio(
               aspectRatio: 16 / 9,
               child: Container(
@@ -91,52 +102,56 @@ class NewsFeed extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      height: 1.3,
-                      color: isDark ? Colors.white : AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        item.source.toUpperCase(),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                          letterSpacing: 0.5,
+                          height: 1.3,
+                          color: isDark ? Colors.white : AppColors.textDark,
                         ),
                       ),
-                      const Spacer(),
-                      Icon(
-                        Icons.access_time_filled,
-                        size: 10,
-                        color: AppColors.textGrey.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.timeAgo.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          item.source.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.access_time_filled,
+                          size: 10,
                           color: AppColors.textGrey.withValues(alpha: 0.5),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 4),
+                        Text(
+                          item.timeAgo.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textGrey.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -30,40 +30,50 @@ class AccuracyReportCard extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Container(
+          height: 220,
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: AppColors.desktopSearchFill.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
-          height: 220,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildMainAccuracy(),
-              const SizedBox(width: 48),
-              Container(width: 1, height: 100, color: Colors.white10),
-              const SizedBox(width: 48),
+              const SizedBox(width: 32),
+              Container(width: 1, color: Colors.white10),
+              const SizedBox(width: 32),
               const Expanded(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _LeagueAccuracy(
-                      label: "PREMIER LEAGUE",
-                      percentage: 0.92,
-                      color: AppColors.primary,
-                      icon: Icons.sports_soccer_rounded,
+                    Expanded(
+                      child: _LeagueAccuracy(
+                        label: "PREMIER LEAGUE",
+                        percentage: 0.92,
+                        color: AppColors.primary,
+                        icon: Icons.sports_soccer_rounded,
+                      ),
                     ),
-                    _LeagueAccuracy(
-                      label: "NBA",
-                      percentage: 0.85,
-                      color: AppColors.warning,
-                      icon: Icons.sports_basketball_rounded,
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _LeagueAccuracy(
+                        label: "NBA",
+                        percentage: 0.85,
+                        color: AppColors.warning,
+                        icon: Icons.sports_basketball_rounded,
+                      ),
                     ),
-                    _LeagueAccuracy(
-                      label: "LA LIGA",
-                      percentage: 0.80,
-                      color: AppColors.successGreen,
-                      icon: Icons.sports_soccer_rounded,
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _LeagueAccuracy(
+                        label: "LA LIGA",
+                        percentage: 0.80,
+                        color: AppColors.successGreen,
+                        icon: Icons.sports_soccer_rounded,
+                      ),
                     ),
                   ],
                 ),
@@ -78,6 +88,7 @@ class AccuracyReportCard extends StatelessWidget {
   Widget _buildMainAccuracy() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Text(
           "TOTAL ACCURACY",
@@ -190,8 +201,7 @@ class _LeagueAccuracy extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 180,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.desktopHeaderBg,
         borderRadius: BorderRadius.circular(20),
@@ -203,16 +213,18 @@ class _LeagueAccuracy extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label.split(' ').first, // Just the first word if long
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textGrey,
-                  letterSpacing: 1.5,
+              Flexible(
+                child: Text(
+                  label.split(' ').first,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textGrey,
+                    letterSpacing: 1.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               Icon(icon, color: color.withValues(alpha: 0.5), size: 16),
             ],

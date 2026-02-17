@@ -5,6 +5,7 @@ import 'accuracy_report_card.dart';
 import 'top_odds_list.dart';
 import '../../../logic/cubit/home_cubit.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/responsive_constants.dart';
 import '../../../core/utils/match_sorter.dart';
 import 'package:leobookapp/presentation/widgets/match_card.dart';
 import '../footnote_section.dart';
@@ -88,80 +89,86 @@ class _DesktopHomeContentState extends State<DesktopHomeContent>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        CustomScrollView(
-          controller: _scrollController,
-          slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _PinnedHeaderDelegate(
-                height: 92,
-                child: Container(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  alignment: Alignment.centerLeft,
-                  child: const CategoryBar(),
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(40, 0, 40, 32),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  const TopPredictionsGrid(),
-                  const SizedBox(height: 48),
-                  const AccuracyReportCard(),
-                  const SizedBox(height: 48),
-                  const TopOddsList(),
-                  const SizedBox(height: 48),
-                ]),
-              ),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _PinnedHeaderDelegate(
-                height: 50,
-                child: Container(
-                  key: _tabBarKey,
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  alignment: Alignment.centerLeft,
-                  child: _buildTabBar(),
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.only(
-                  left: 40, right: 40, top: 24, bottom: 24),
-              sliver: SliverToBoxAdapter(
-                child: Builder(
-                  builder: (context) {
-                    final index = _tabController.index;
-                    MatchTabType type;
-                    switch (index) {
-                      case 1:
-                        type = MatchTabType.finished;
-                        break;
-                      case 2:
-                        type = MatchTabType.scheduled;
-                        break;
-                      default:
-                        type = MatchTabType.all;
-                    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hPad = Responsive.horizontalPadding(constraints.maxWidth);
 
-                    return _buildMatchGroupedList(type);
-                  },
+        return Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _PinnedHeaderDelegate(
+                    height: 92,
+                    child: Container(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      padding: EdgeInsets.symmetric(horizontal: hPad),
+                      alignment: Alignment.centerLeft,
+                      child: const CategoryBar(),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            // Footer
-            SliverToBoxAdapter(
-              child: FootnoteSection(key: _footerKey),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 32),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      const TopPredictionsGrid(),
+                      const SizedBox(height: 48),
+                      const AccuracyReportCard(),
+                      const SizedBox(height: 48),
+                      const TopOddsList(),
+                      const SizedBox(height: 48),
+                    ]),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _PinnedHeaderDelegate(
+                    height: 50,
+                    child: Container(
+                      key: _tabBarKey,
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      padding: EdgeInsets.symmetric(horizontal: hPad),
+                      alignment: Alignment.centerLeft,
+                      child: _buildTabBar(),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.only(
+                      left: hPad, right: hPad, top: 24, bottom: 24),
+                  sliver: SliverToBoxAdapter(
+                    child: Builder(
+                      builder: (context) {
+                        final index = _tabController.index;
+                        MatchTabType type;
+                        switch (index) {
+                          case 1:
+                            type = MatchTabType.finished;
+                            break;
+                          case 2:
+                            type = MatchTabType.scheduled;
+                            break;
+                          default:
+                            type = MatchTabType.all;
+                        }
+
+                        return _buildMatchGroupedList(type);
+                      },
+                    ),
+                  ),
+                ),
+                // Footer
+                SliverToBoxAdapter(
+                  child: FootnoteSection(key: _footerKey),
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 

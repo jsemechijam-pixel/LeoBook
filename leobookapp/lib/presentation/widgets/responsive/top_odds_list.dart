@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/responsive_constants.dart';
 import '../../screens/top_odds_screen.dart';
 
 class TopOddsList extends StatelessWidget {
@@ -7,79 +8,92 @@ class TopOddsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardW = Responsive.cardWidth(constraints.maxWidth,
+            minWidth: 260, maxWidth: 360);
+        final listH =
+            Responsive.listHeight(constraints.maxWidth, min: 180, max: 240);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionHeader(
-              title: "TOP ODDS",
-              icon: Icons.local_fire_department_rounded,
-              color: Color(0xFFEAB308), // Fire Orange/Yellow
-            ),
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const TopOddsScreen(),
-                  ),
-                );
-              },
-              child: const Text(
-                "VIEW ALL ODDS",
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primary,
-                  letterSpacing: 1.5,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _SectionHeader(
+                  title: "TOP ODDS",
+                  icon: Icons.local_fire_department_rounded,
+                  color: Color(0xFFEAB308),
                 ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const TopOddsScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    "VIEW ALL ODDS",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: listH,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _OddsCard(
+                    cardWidth: cardW,
+                    title: "Man City to Win & Haaland to Score",
+                    wasOdds: "2.10",
+                    nowOdds: "2.50",
+                    badge: "BOOSTED",
+                    type: "EPL SPECIAL",
+                    color: AppColors.warning,
+                  ),
+                  _OddsCard(
+                    cardWidth: cardW,
+                    title: "Lakers to make Western Conf. Finals",
+                    wasOdds: "3.50",
+                    nowOdds: "4.20",
+                    badge: "HOT PICK",
+                    type: "NBA FUTURES",
+                    color: Color(0xFFF97316),
+                  ),
+                  _OddsCard(
+                    cardWidth: cardW,
+                    title: "Alcaraz to Win French Open '24",
+                    wasOdds: "2.75",
+                    nowOdds: "3.10",
+                    badge: "VALUE",
+                    type: "GRAND SLAM",
+                    color: Color(0xFFEAB308),
+                  ),
+                  _OddsCard(
+                    cardWidth: cardW,
+                    title: "Caleb Williams #1 Overall Pick",
+                    wasOdds: "1.05",
+                    nowOdds: "1.15",
+                    badge: "SPECIAL",
+                    type: "NFL DRAFT",
+                    color: AppColors.primary,
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 200,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: const [
-              _OddsCard(
-                title: "Man City to Win & Haaland to Score",
-                wasOdds: "2.10",
-                nowOdds: "2.50",
-                badge: "BOOSTED",
-                type: "EPL SPECIAL",
-                color: AppColors.warning,
-              ),
-              _OddsCard(
-                title: "Lakers to make Western Conf. Finals",
-                wasOdds: "3.50",
-                nowOdds: "4.20",
-                badge: "HOT PICK",
-                type: "NBA FUTURES",
-                color: Color(0xFFF97316),
-              ),
-              _OddsCard(
-                title: "Alcaraz to Win French Open '24",
-                wasOdds: "2.75",
-                nowOdds: "3.10",
-                badge: "VALUE",
-                type: "GRAND SLAM",
-                color: Color(0xFFEAB308),
-              ),
-              _OddsCard(
-                title: "Caleb Williams #1 Overall Pick",
-                wasOdds: "1.05",
-                nowOdds: "1.15",
-                badge: "SPECIAL",
-                type: "NFL DRAFT",
-                color: AppColors.primary,
-              ),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -116,6 +130,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _OddsCard extends StatefulWidget {
+  final double cardWidth;
   final String title;
   final String wasOdds;
   final String nowOdds;
@@ -124,6 +139,7 @@ class _OddsCard extends StatefulWidget {
   final Color color;
 
   const _OddsCard({
+    required this.cardWidth,
     required this.title,
     required this.wasOdds,
     required this.nowOdds,
@@ -146,7 +162,7 @@ class _OddsCardState extends State<_OddsCard> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 320,
+        width: widget.cardWidth,
         margin: const EdgeInsets.only(right: 20),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -164,27 +180,33 @@ class _OddsCardState extends State<_OddsCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: widget.color,
-                        shape: BoxShape.circle,
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: widget.color,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.type,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.textGrey,
-                        letterSpacing: 1.5,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          widget.type,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textGrey,
+                            letterSpacing: 1.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -226,29 +248,31 @@ class _OddsCardState extends State<_OddsCard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "WAS ${widget.wasOdds}",
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.3),
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.lineThrough,
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "WAS ${widget.wasOdds}",
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.lineThrough,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "ODDS",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
+                      const SizedBox(height: 4),
+                      const Text(
+                        "ODDS",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 1.5,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 Text(
                   widget.nowOdds,

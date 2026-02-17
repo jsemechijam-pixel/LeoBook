@@ -64,44 +64,46 @@ class _LeoDatePickerState extends State<LeoDatePicker> {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Container(
-        width: 380,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.desktopSidebarBg,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 40,
-              offset: const Offset(0, 20),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "SELECT\nDATE",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                height: 1.1,
-                letterSpacing: 1.5,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.desktopSidebarBg,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 40,
+                offset: const Offset(0, 20),
               ),
-            ),
-            const SizedBox(height: 24),
-            _buildHeader(),
-            const SizedBox(height: 24),
-            _buildWeekDays(),
-            const SizedBox(height: 8),
-            _buildCalendarGrid(),
-            const SizedBox(height: 32),
-            _buildActions(),
-          ],
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "SELECT\nDATE",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  height: 1.1,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildHeader(),
+              const SizedBox(height: 24),
+              _buildWeekDays(),
+              const SizedBox(height: 8),
+              _buildCalendarGrid(),
+              const SizedBox(height: 32),
+              _buildActions(),
+            ],
+          ),
         ),
       ),
     );
