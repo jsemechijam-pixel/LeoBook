@@ -52,8 +52,8 @@ class TopOddsList extends StatelessWidget {
         SizedBox(height: Responsive.sp(context, 10)),
         ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: Responsive.sp(context, 140),
-            maxHeight: Responsive.sp(context, 180),
+            minHeight: Responsive.sp(context, 160),
+            maxHeight: Responsive.sp(context, 210),
           ),
           child: ListView(
             scrollDirection: Axis.horizontal,

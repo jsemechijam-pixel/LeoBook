@@ -40,17 +40,20 @@ class AccuracyReportCard extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (isDesktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildMainAccuracy(context),
-                    const SizedBox(width: 32),
-                    Container(width: 1, color: Colors.white10),
-                    const SizedBox(width: 32),
-                    const Expanded(child: _LeagueAccuracyGrid()),
-                  ],
+                SizedBox(
+                  height: Responsive.sp(context, 80),
+                  child: Row(
+                    children: [
+                      _buildMainAccuracy(context),
+                      const SizedBox(width: 32),
+                      Container(width: 1, color: Colors.white10),
+                      const SizedBox(width: 32),
+                      const Expanded(child: _LeagueAccuracyGrid()),
+                    ],
+                  ),
                 )
               else
                 Column(
