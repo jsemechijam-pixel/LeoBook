@@ -39,7 +39,7 @@ def _read_csv(path):
 
 def _write_csv(path, rows, fieldnames):
     with open(path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
