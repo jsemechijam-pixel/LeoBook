@@ -233,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
+      physics: liquidScrollPhysics,
       itemCount: sortedItems.length + 1,
       itemBuilder: (context, index) {
         final isFooter = index == sortedItems.length;
